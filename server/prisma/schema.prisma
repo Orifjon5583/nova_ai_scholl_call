@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  username  String   @unique
+  password  String
+  phone     String?
+  role      String   @default("operator")
+  status    String   @default("online")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignedLeads Lead[]     @relation("OperatorLeads")
+  callLogs      CallLog[]
+  comments      Comment[]
+  leadDelays    LeadDelay[]
+  activities    ActivityLog[]
+  assignedTasks Task[]        @relation("AssignedTasks")
+  createdTasks  Task[]        @relation("CreatedTasks")
+}
+
+model Lead {
+  id                 Int       @id @default(autoincrement())
+  name               String
+  phone              String
+  source             String?
+  region             String?
+  quality            String    @default("unknown")
+  status             String    @default("waiting")
+  assignedTo         Int?
+  operator           User?     @relation("OperatorLeads", fields: [assignedTo], references: [id])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  nextCallAt         DateTime?
+  delayCount         Int       @default(0)
+  lastCallAt         DateTime?
+  totalCallSeconds   Int       @default(0)
+
+  callLogs           CallLog[]
+  comments           Comment[]
+  leadDelays         LeadDelay[]
+}
+
+model CallLog {
+  id               Int      @id @default(autoincrement())
+  leadId           Int
+  lead             Lead     @relation(fields: [leadId], references: [id])
+  operatorId       Int
+  operator         User     @relation(fields: [operatorId], references: [id])
+  startedAt        DateTime?
+  endedAt          DateTime?
+  durationSeconds  Int?
+  result           String?
+  createdAt        DateTime @default(now())
+}
+
+model Comment {
+  id         Int      @id @default(autoincrement())
+  leadId     Int
+  lead       Lead     @relation(fields: [leadId], references: [id])
+  operatorId Int
+  operator   User     @relation(fields: [operatorId], references: [id])
+  comment    String
+  createdAt  DateTime @default(now())
+}
+
+model LeadDelay {
+  id           Int      @id @default(autoincrement())
+  leadId       Int
+  lead         Lead     @relation(fields: [leadId], references: [id])
+  operatorId   Int
+  operator     User     @relation(fields: [operatorId], references: [id])
+  delayMinutes Int
+  oldDueAt     DateTime?
+  newDueAt     DateTime?
+  reason       String?
+  createdAt    DateTime @default(now())
+}
+
+model ActivityLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id])
+  action      String
+  details     String?
+  createdAt   DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+model Task {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      String   @default("pending") // 'pending', 'completed'
+  assignedTo  Int
+  assignedBy  Int
+  assignedUser User    @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  creator      User    @relation("CreatedTasks", fields: [assignedBy], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
