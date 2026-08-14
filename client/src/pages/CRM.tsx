@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Plus, Download, Filter, List, LayoutGrid, ChevronLeft, Phone, Clock, MessageSquare, Save, MoreHorizontal } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import api from '../api';
 
 interface CRMProps {
@@ -15,10 +16,30 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Dynamic Kanban Columns
-  const [columns, setColumns] = useState<string[]>(['Yangi', 'Kutilmoqda', 'Qayta qo\'ng\'iroq', 'Aloqa bo\'ldi']);
+  // Dynamic Kanban Columns (Persisted in localStorage)
+  const [columns, setColumns] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('nova_crm_kanban_columns');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.error('Failed to load columns from localStorage', e);
+    }
+    return ['Yangi', 'Kutilmoqda', 'Qayta qo\'ng\'iroq', 'Aloqa bo\'ldi'];
+  });
   const [newColumnName, setNewColumnName] = useState('');
   const [isAddingColumn, setIsAddingColumn] = useState(false);
+
+  // Sync columns with localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('nova_crm_kanban_columns', JSON.stringify(columns));
+    } catch (e) {
+      console.error('Failed to save columns to localStorage', e);
+    }
+  }, [columns]);
 
   // Detail Tabs
   const [activeTab, setActiveTab] = useState<'timeline' | 'calls' | 'comments' | 'info'>('timeline');
@@ -27,7 +48,6 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   const [isCalling, setIsCalling] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [callTimer, setCallTimer] = useState<any>(null);
-  const [newComment, setNewComment] = useState('');
 
   // Sort and Filter States
   const [sortBy, setSortBy] = useState('newest'); // 'newest', 'oldest', 'most_delayed'
@@ -41,6 +61,100 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   // Post Call Wrap-up Modal
   const [showPostCallModal, setShowPostCallModal] = useState(false);
   const [postCallForm, setPostCallForm] = useState({ comment: '', status: '', quality: '', nextCallAt: '' });
+
+  // Excel / CSV Import Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [parsedLeads, setParsedLeads] = useState<any[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const bstr = event.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        if (!rows || rows.length === 0) {
+          alert("Faylda lidlar topilmadi!");
+          return;
+        }
+
+        const extracted: any[] = rows.map((row: any) => {
+          const keys = Object.keys(row);
+          const findVal = (exactKeys: string[], fallbackKeys: string[]) => {
+            // 1. Try exact match first
+            for (const key of keys) {
+              const k = key.toLowerCase().trim();
+              if (exactKeys.includes(k)) {
+                return row[key];
+              }
+            }
+            // 2. Try substring match ignoring ad_name / adset_name / campaign_name / form_name
+            for (const key of keys) {
+              const k = key.toLowerCase().trim();
+              if (k.includes('ad_') || k.includes('adset') || k.includes('campaign') || k.includes('form')) continue;
+              if (fallbackKeys.some(f => k.includes(f))) {
+                return row[key];
+              }
+            }
+            return '';
+          };
+
+          let name = findVal(['full_name', 'full name', 'ism', 'f.i.sh', 'name'], ['full_name', 'full name', 'ism', 'f.i.sh']);
+          let phone = findVal(['phone_number', 'phone number', 'phone', 'telefon', 'raqam'], ['phone_number', 'phone number', 'phone', 'telefon']);
+          let createdAt = findVal(['created_time', 'created time', 'created_at', 'created at', 'sana', 'vaqt'], ['created_time', 'created_at', 'created']);
+
+          // If keys didn't match header names, fallback by column index or raw object values
+          const rawVals = Object.values(row);
+          if (!name && rawVals.length > 0) name = rawVals[12] || rawVals[0] || "Noma'lum";
+          if (!phone && rawVals.length > 1) phone = rawVals[13] || rawVals[1] || "Noma'lum";
+          if (!createdAt && rawVals.length > 2) createdAt = rawVals[1] || rawVals[2] || new Date().toISOString();
+
+          let cleanPhone = (phone || '').toString().trim();
+          if (cleanPhone.startsWith('p:')) {
+            cleanPhone = cleanPhone.replace('p:', '').trim();
+          }
+
+          return {
+            name: (name || '').toString().trim() || "Noma'lum",
+            phone: cleanPhone || "Noma'lum",
+            createdAt: (createdAt || '').toString().trim() || new Date().toISOString(),
+            source: 'Meta Ads Excel'
+          };
+        });
+
+        setParsedLeads(extracted);
+      } catch (err) {
+        console.error('Failed to parse Excel file', err);
+        alert("Faylni o'qishda xatolik yuz berdi. Iltimos to'g'ri Excel (.xlsx / .csv) fayl yuklang.");
+      }
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  const handleExecuteImport = async () => {
+    if (parsedLeads.length === 0) return;
+    setImportLoading(true);
+    try {
+      await api.post('/leads/import', { leads: parsedLeads });
+      setShowImportModal(false);
+      setParsedLeads([]);
+      fetchLeads();
+      alert(`Muvaffaqiyatli ${parsedLeads.length} ta lid tizimga saqlandi!`);
+    } catch (err) {
+      console.error('Import failed', err);
+      alert('Lidlarni saqlashda xatolik yuz berdi');
+    } finally {
+      setImportLoading(false);
+    }
+  };
 
   const xorazmRegions = ['Urganch', 'Xiva', 'Bog\'ot', 'Xonqa', 'Qo\'shko\'pir', 'Shovot', 'Gurlan', 'Yangibozor', 'Yangiariq', 'Hazorasp', 'Tuproqqal\'a', 'Boshqa'];
 
@@ -57,6 +171,22 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
       }
       const { data } = await api.get(url);
       setLeads(data);
+
+      // Auto-discover unique lead statuses and append to columns
+      if (Array.isArray(data)) {
+        const uniqueStatuses = Array.from(new Set(data.map((l: any) => l.status).filter(Boolean)));
+        setColumns(prev => {
+          const newCols = [...prev];
+          let updated = false;
+          uniqueStatuses.forEach((st: any) => {
+            if (st !== 'waiting' && !newCols.includes(st)) {
+              newCols.push(st);
+              updated = true;
+            }
+          });
+          return updated ? newCols : prev;
+        });
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -137,26 +267,15 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
     }
     
     try {
-        // 1. Save call log
+        // Single unified Call Wrap-up request
         await api.post(`/leads/${selectedLead.id}/call`, {
             durationSeconds: callDuration,
-            result: 'Oldi'
-        });
-        
-        // 2. Save comment
-        await api.post(`/leads/${selectedLead.id}/comment`, { 
-            comment: postCallForm.comment 
-        });
-        
-        // 3. Update lead status, quality, deadline
-        const payload: any = {
+            result: 'Oldi',
+            comment: postCallForm.comment,
             status: postCallForm.status,
-            quality: postCallForm.quality
-        };
-        if (postCallForm.nextCallAt) {
-            payload.nextCallAt = postCallForm.nextCallAt;
-        }
-        await api.put(`/leads/${selectedLead.id}`, payload);
+            quality: postCallForm.quality,
+            nextCallAt: postCallForm.nextCallAt || null
+        });
         
         // Refresh leads and selected lead
         setCallDuration(0);
@@ -174,20 +293,6 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
         
     } catch (e) {
         console.error(e);
-    }
-  };
-
-  const handleAddComment = async () => {
-    if (!newComment.trim()) return;
-    try {
-      await api.post(`/leads/${selectedLead.id}/comment`, { comment: newComment });
-      setNewComment('');
-      const updated = await api.get('/leads');
-      setLeads(updated.data);
-      const newSelected = updated.data.find((l: any) => l.id === selectedLead.id);
-      if(newSelected) setSelectedLead(newSelected);
-    } catch (e) {
-      console.error(e);
     }
   };
 
@@ -334,13 +439,26 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
         
         const colLeads = filteredLeads.filter(l => l.status === col || l.status === mappedCol);
         
+        const isDefaultCol = ['Yangi', 'Kutilmoqda', 'Qayta qo\'ng\'iroq', 'Aloqa bo\'ldi'].includes(col);
         return (
         <div key={col} className="w-80 flex-shrink-0 bg-[#F1F5F9] rounded-xl p-3 flex flex-col max-h-full">
           <div className="flex items-center justify-between mb-3 px-1">
             <h4 className="font-bold text-gray-700 uppercase text-xs tracking-wider flex gap-2 items-center">
                 {col} <span className="bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">{colLeads.length}</span>
             </h4>
-            <button className="text-gray-400 hover:text-gray-600"><MoreHorizontal size={16}/></button>
+            {!isDefaultCol && (
+              <button 
+                onClick={() => {
+                  if (confirm(`"${col}" yacheykasini o'chirib tashlamoqchimisiz?`)) {
+                    setColumns(columns.filter(c => c !== col));
+                  }
+                }}
+                title="Yacheykani o'chirish"
+                className="text-gray-400 hover:text-red-500 transition text-xs font-bold px-1"
+              >
+                ✕
+              </button>
+            )}
           </div>
           <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-1">
             {colLeads.map(lead => (
@@ -360,7 +478,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                   <span className="text-gray-500 flex items-center gap-1">👤 {lead.operator?.name || 'Biriktirilmagan'}</span>
                   {lead.nextCallAt && (
                       <span className="text-red-500 font-medium bg-red-50 px-2 py-1 rounded flex items-center gap-1">
-                          <Clock size={12}/> {new Date(lead.nextCallAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}
+                          <Clock size={12}/> {new Date(lead.nextCallAt).toLocaleDateString('uz-UZ', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                       </span>
                   )}
                 </div>
@@ -417,6 +535,12 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 className="bg-[#008F4C] hover:bg-[#005B35] text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-sm"
             >
               <Plus size={18} /> Lid qo'shish
+            </button>
+            <button 
+                onClick={() => setShowImportModal(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-sm"
+            >
+              <Download size={18} /> Excel / CSV import
             </button>
             <div className="relative">
                 <button 
@@ -526,18 +650,28 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 </button>
              </div>
             
-             <div className="flex items-center gap-3 mt-1">
-                 <div className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 focus-within:ring-2 focus-within:ring-[#F4C400] shadow-sm">
-                    <Clock size={20} className="text-[#F4C400]" />
-                    <input 
-                        type="datetime-local" 
-                        value={selectedLead.nextCallAt ? new Date(new Date(selectedLead.nextCallAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-                        onChange={e => handleUpdateStatus(undefined, undefined, e.target.value)}
-                        className="w-full text-[15px] font-bold text-gray-700 focus:outline-none"
-                    />
+             <div className="flex flex-col gap-1 mt-1">
+                 <div className="flex items-center gap-3">
+                     <div className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 focus-within:ring-2 focus-within:ring-[#F4C400] shadow-sm">
+                        <Clock size={20} className="text-[#F4C400]" />
+                        <input 
+                            type="datetime-local" 
+                            value={selectedLead.nextCallAt ? new Date(new Date(selectedLead.nextCallAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                            onChange={e => handleUpdateStatus(undefined, undefined, e.target.value)}
+                            className="w-full text-[15px] font-bold text-gray-700 focus:outline-none"
+                        />
+                     </div>
+                     <span className="text-xs uppercase text-gray-500 w-24 text-center leading-tight font-bold">Keyingi aloqa (Deadline)</span>
                  </div>
-                 <span className="text-xs uppercase text-gray-500 w-24 text-center leading-tight font-bold">Keyingi aloqa (Deadline)</span>
-             </div>
+                 {selectedLead.nextCallAt && (
+                    <button
+                      onClick={() => handleUpdateStatus(undefined, undefined, null as any)}
+                      className="text-xs text-red-600 font-bold hover:underline self-start ml-2 mt-1"
+                    >
+                      ✕ Deadlineni o'chirish / olib tashlash
+                    </button>
+                 )}
+              </div>
           </div>
 
           {/* Details Table */}
@@ -737,7 +871,17 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 </div>
 
                 <div>
-                    <label className="text-xs font-bold text-gray-500 mb-1 block">Keyingi aloqa (Deadline surilsa)</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-bold text-gray-500 block">Keyingi aloqa (Deadline)</label>
+                      {postCallForm.nextCallAt && (
+                        <button 
+                          onClick={() => setPostCallForm({...postCallForm, nextCallAt: ''})}
+                          className="text-[11px] text-red-600 font-bold hover:underline"
+                        >
+                          ✕ Deadlineni o'chirish
+                        </button>
+                      )}
+                    </div>
                     <input 
                         type="datetime-local" 
                         value={postCallForm.nextCallAt}
@@ -816,6 +960,101 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 >
                     Saqlash
                 </button>
+            </div>
+        </div>
+      )}
+
+      {/* Excel / CSV Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 flex flex-col gap-4 max-h-[85vh]">
+                <div className="flex justify-between items-center border-b pb-3">
+                    <div>
+                      <h3 className="font-bold text-xl text-[#173127]">📥 Excel / CSV Fayldan Lid Qo'shish</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Faylingizdan <code className="bg-gray-100 px-1 py-0.5 rounded text-blue-600 font-mono">full_name</code>, <code className="bg-gray-100 px-1 py-0.5 rounded text-blue-600 font-mono">phone_number</code> va <code className="bg-gray-100 px-1 py-0.5 rounded text-blue-600 font-mono">created_time</code> ustunlari avtomatik ajratib olinadi.
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setShowImportModal(false);
+                        setParsedLeads([]);
+                      }}
+                      className="text-gray-400 hover:text-gray-600 text-xl font-bold px-2"
+                    >
+                      ✕
+                    </button>
+                </div>
+                
+                <div className="border-2 border-dashed border-blue-200 bg-blue-50/40 rounded-xl p-6 text-center">
+                    <input 
+                      type="file" 
+                      accept=".csv,.txt,.xlsx,.xls"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="excel-csv-upload-input"
+                    />
+                    <label 
+                      htmlFor="excel-csv-upload-input"
+                      className="cursor-pointer inline-flex flex-col items-center justify-center gap-2 text-blue-600 font-bold hover:text-blue-700"
+                    >
+                      <Download size={32} className="animate-bounce" />
+                      <span>Excel (.csv / .xlsx / .txt) faylni tanlang</span>
+                      <span className="text-xs font-normal text-gray-500">Komyuter fayllaridan tanlash uchun shu yerni bosing</span>
+                    </label>
+                </div>
+
+                {parsedLeads.length > 0 && (
+                  <div className="flex-1 overflow-hidden flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
+                        Topilgan lidlar: <strong className="text-blue-600">{parsedLeads.length} ta</strong>
+                      </span>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto border rounded-xl custom-scrollbar max-h-60">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead className="bg-gray-100 sticky top-0 font-bold text-gray-700">
+                          <tr>
+                            <th className="p-2 border-b">#</th>
+                            <th className="p-2 border-b">Full Name</th>
+                            <th className="p-2 border-b">Phone Number</th>
+                            <th className="p-2 border-b">Created Time</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {parsedLeads.slice(0, 100).map((lead, idx) => (
+                            <tr key={idx} className="hover:bg-blue-50/50">
+                              <td className="p-2 text-gray-400 font-mono">{idx + 1}</td>
+                              <td className="p-2 font-bold text-gray-800">{lead.name}</td>
+                              <td className="p-2 text-gray-600 font-mono">{lead.phone}</td>
+                              <td className="p-2 text-gray-500">{lead.createdAt ? new Date(lead.createdAt).toLocaleString('uz-UZ') : "Noma'lum"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2 border-t">
+                  <button 
+                    onClick={() => {
+                      setShowImportModal(false);
+                      setParsedLeads([]);
+                    }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-sm transition"
+                  >
+                    Bekor qilish
+                  </button>
+                  <button 
+                    onClick={handleExecuteImport}
+                    disabled={parsedLeads.length === 0 || importLoading}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg text-sm shadow-md transition flex items-center gap-2"
+                  >
+                    {importLoading ? 'Saqlanmoqda...' : `📥 ${parsedLeads.length} ta lidni saqlash`}
+                  </button>
+                </div>
             </div>
         </div>
       )}

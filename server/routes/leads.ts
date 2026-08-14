@@ -73,6 +73,51 @@ router.post('/', authenticate, async (req: any, res: any) => {
     }
 });
 
+// POST /api/leads/import - Bulk import leads from Excel/CSV
+router.post('/import', authenticate, async (req: any, res: any) => {
+    try {
+        const { leads } = req.body;
+        if (!Array.isArray(leads) || leads.length === 0) {
+            return res.status(400).json({ error: 'Lidlar ro\'yxati bo\'sh' });
+        }
+
+        const createdLeads = [];
+        for (const item of leads) {
+            let cleanPhone = (item.phone || item.phone_number || '').toString().trim();
+            if (cleanPhone.startsWith('p:')) {
+                cleanPhone = cleanPhone.replace('p:', '').trim();
+            }
+            if (!cleanPhone) cleanPhone = 'Noma\'lum';
+
+            const cleanName = (item.name || item.full_name || '').toString().trim() || 'Noma\'lum';
+            
+            const rawDate = item.createdAt || item.created_time || item.created_at;
+            let parsedDate = rawDate ? new Date(rawDate) : new Date();
+            if (isNaN(parsedDate.getTime())) {
+                parsedDate = new Date();
+            }
+
+            const lead = await prisma.lead.create({
+                data: {
+                    name: cleanName,
+                    phone: cleanPhone,
+                    source: item.source || 'Excel Import',
+                    region: item.region || null,
+                    createdAt: parsedDate,
+                    assignedTo: req.user.role === 'admin' ? null : req.user.id,
+                    status: 'Yangi'
+                }
+            });
+            createdLeads.push(lead);
+        }
+
+        res.json({ message: 'Success', count: createdLeads.length });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Importing leads error' });
+    }
+});
+
 // PUT /api/leads/:id - Lidni yangilash
 router.put('/:id', authenticate, async (req: any, res: any) => {
     try {
@@ -88,6 +133,12 @@ router.put('/:id', authenticate, async (req: any, res: any) => {
         if (region !== undefined) updateData.region = region;
         if (assignedTo !== undefined) updateData.assignedTo = assignedTo;
         
+        const isFinishedStatus = (s: string) => {
+            if (!s) return false;
+            const lower = s.toLowerCase();
+            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('aloqa') || lower.includes('yakun');
+        };
+
         if (nextCallAt !== undefined) {
             updateData.nextCallAt = nextCallAt ? new Date(nextCallAt) : null;
             // If the new nextCallAt is different and further in the future, it's a delay!
@@ -98,13 +149,15 @@ router.put('/:id', authenticate, async (req: any, res: any) => {
                     data: {
                         leadId: id,
                         operatorId: req.user.id,
-                        delayMinutes: 0, // Not explicitly specified
+                        delayMinutes: 0,
                         oldDueAt: currentLead.nextCallAt,
                         newDueAt: new Date(nextCallAt),
                         reason: 'Sana o\'zgartirildi'
                     }
                 });
             }
+        } else if (status && isFinishedStatus(status)) {
+            updateData.nextCallAt = null;
         }
 
         const updatedLead = await prisma.lead.update({
@@ -119,34 +172,92 @@ router.put('/:id', authenticate, async (req: any, res: any) => {
     }
 });
 
-// POST /api/leads/:id/call - Qo'ng'iroq ma'lumotlarini saqlash
+// POST /api/leads/:id/call - Qo'ng'iroq ma'lumotlarini to'liq saqlash (Call Wrap-up)
 router.post('/:id/call', authenticate, async (req: any, res: any) => {
     try {
         const leadId = parseInt(req.params.id);
-        const { durationSeconds, result } = req.body;
+        const { durationSeconds, result, comment, status, quality, nextCallAt } = req.body;
 
+        const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
+        if (!currentLead) return res.status(404).json({ error: 'Lead not found' });
+
+        // 1. Create Call Log
         const callLog = await prisma.callLog.create({
             data: {
                 leadId,
                 operatorId: req.user.id,
-                durationSeconds,
-                result,
-                startedAt: new Date(Date.now() - durationSeconds * 1000),
+                durationSeconds: durationSeconds || 0,
+                result: result || 'Oldi',
+                startedAt: new Date(Date.now() - (durationSeconds || 0) * 1000),
                 endedAt: new Date()
             }
         });
 
-        // Update lead total call seconds and lastCallAt
-        await prisma.lead.update({
+        // 2. Create Comment if provided
+        if (comment && comment.trim()) {
+            await prisma.comment.create({
+                data: {
+                    leadId,
+                    operatorId: req.user.id,
+                    comment: comment.trim()
+                }
+            });
+        }
+
+        // 3. Prepare Lead updates
+        const leadUpdateData: any = {
+            totalCallSeconds: { increment: durationSeconds || 0 },
+            lastCallAt: new Date()
+        };
+
+        // Helper to check finished statuses (sotildi, shartnoma, rad, aloqa, etc.)
+        const isFinishedStatus = (s: string) => {
+            if (!s) return false;
+            const lower = s.toLowerCase();
+            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('aloqa') || lower.includes('yakun');
+        };
+
+        if (status) leadUpdateData.status = status;
+        if (quality) leadUpdateData.quality = quality;
+
+        if (nextCallAt !== undefined) {
+            const newDate = nextCallAt ? new Date(nextCallAt) : null;
+            leadUpdateData.nextCallAt = newDate;
+            
+            // Check if deadline was pushed/changed
+            if (newDate && (!currentLead.nextCallAt || newDate.getTime() !== currentLead.nextCallAt.getTime())) {
+                leadUpdateData.delayCount = { increment: 1 };
+                await prisma.leadDelay.create({
+                    data: {
+                        leadId,
+                        operatorId: req.user.id,
+                        delayMinutes: 0,
+                        oldDueAt: currentLead.nextCallAt,
+                        newDueAt: newDate,
+                        reason: 'Qo\'ng\'iroq yakunida ko\'chirildi'
+                    }
+                });
+            }
+        } else if (status && isFinishedStatus(status)) {
+            // Auto clear deadline if lead reached finished status
+            leadUpdateData.nextCallAt = null;
+        }
+
+        const updatedLead = await prisma.lead.update({
             where: { id: leadId },
-            data: {
-                totalCallSeconds: { increment: durationSeconds },
-                lastCallAt: new Date(),
-                status: 'Gaplashildi' // Auto-update status
+            data: leadUpdateData,
+            include: {
+                operator: { select: { id: true, name: true } },
+                callLogs: true,
+                comments: {
+                    include: { operator: { select: { name: true } } },
+                    orderBy: { createdAt: 'desc' }
+                },
+                leadDelays: true
             }
         });
 
-        res.json(callLog);
+        res.json({ callLog, updatedLead });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });

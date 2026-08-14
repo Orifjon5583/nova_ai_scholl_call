@@ -12,14 +12,27 @@ router.get('/', authenticate, async (req: any, res: any) => {
         const whereClause = role === 'admin' ? {} : { assignedTo: userId };
         const operatorWhereClause = role === 'admin' ? {} : { operatorId: userId };
 
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
         // 1. Jami lidlar
         const totalLeads = await prisma.lead.count({ where: whereClause });
         
-        // 2. Yangi lidlar
-        const newLeads = await prisma.lead.count({ where: { ...whereClause, status: 'Yangi' } });
+        // 2. Yangi lidlar (Bugun tushgan lidlar)
+        const newLeads = await prisma.lead.count({ 
+            where: { 
+                ...whereClause, 
+                createdAt: { gte: todayStart } 
+            } 
+        });
 
-        // 3. Kutayotgan lidlar
-        const waitingLeads = await prisma.lead.count({ where: { ...whereClause, status: 'Kutilmoqda' } });
+        // 3. Kutayotgan lidlar (Hali biror bosqichga o'tmagan/ishlanmagan kutilayotgan lidlar)
+        const waitingLeads = await prisma.lead.count({ 
+            where: { 
+                ...whereClause, 
+                status: { in: ['Yangi', 'Kutilmoqda', 'waiting', 'Yangi Lidlar', 'yangi'] } 
+            } 
+        });
         
         // 4. Sifatli lidlar
         const qualityLeads = await prisma.lead.count({ where: { ...whereClause, quality: 'Sifatli' } });
@@ -27,16 +40,16 @@ router.get('/', authenticate, async (req: any, res: any) => {
         // 5. Sifatsiz lidlar
         const badLeads = await prisma.lead.count({ where: { ...whereClause, quality: 'Sifatsiz' } });
         
-        // 6. Vaqti o'tgan (Overdue) lidlar (nextCallAt o'tib ketgan)
-        const overdueLeadsList = await prisma.lead.findMany({ 
+        // 6. Faol qo'ng'iroq deadline'lari (nextCallAt mavjud bo'lganlar)
+        const rawOverdueLeadsList = await prisma.lead.findMany({ 
             where: { 
                 ...whereClause, 
-                nextCallAt: { lt: new Date() },
-                status: { notIn: ['Aloqa bo\'ldi', 'Rad etdi'] }
+                nextCallAt: { not: null }
             },
             select: { 
                 id: true, 
                 name: true, 
+                status: true,
                 nextCallAt: true,
                 comments: {
                     orderBy: { createdAt: 'desc' },
@@ -44,6 +57,19 @@ router.get('/', authenticate, async (req: any, res: any) => {
                     select: { comment: true }
                 }
             }
+        });
+
+        const isFinishedStatus = (s: string) => {
+            if (!s) return false;
+            const lower = s.toLowerCase();
+            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('aloqa') || lower.includes('yakun');
+        };
+
+        const overdueLeadsList = rawOverdueLeadsList.filter(l => {
+            if (isFinishedStatus(l.status)) return false;
+            const d = new Date(l.nextCallAt);
+            d.setHours(0, 0, 0, 0);
+            return d.getTime() <= todayStart.getTime();
         });
         const overdueLeads = overdueLeadsList.length;
 
@@ -128,6 +154,18 @@ router.get('/', authenticate, async (req: any, res: any) => {
             };
         });
 
+        // 10. Admin biriktirgan topshiriqlar (Tasks)
+        const assignedTasksList = await prisma.task.findMany({
+            where: {
+                assignedTo: userId,
+                status: 'pending'
+            },
+            include: {
+                creator: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
         res.json({
             stats: {
                 totalLeads,
@@ -137,6 +175,7 @@ router.get('/', authenticate, async (req: any, res: any) => {
                 badLeads,
                 overdueLeads,
                 overdueLeadsList,
+                assignedTasksList,
                 callsToday,
                 totalDelays,
                 todayCallDuration

@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import CRM from './pages/CRM';
 import Calls from './pages/Calls';
 import Tasks from './pages/Tasks';
+import Operators from './pages/Operators';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 
@@ -27,7 +28,7 @@ function App() {
           
           <Route path="calls" element={<Calls />} />
           <Route path="tasks" element={<Tasks />} />
-          <Route path="operators" element={<Settings />} /> {/* Placeholder for operators */}
+          <Route path="operators" element={<Operators />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
         </Route>

@@ -32,20 +32,7 @@ const DashboardLayout = () => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin', 'operator'] },
-    { 
-      icon: Users, 
-      label: 'CRM', 
-      path: '/crm', 
-      roles: ['admin', 'operator'],
-      subItems: [
-        { label: 'Barcha lidlar', path: '/crm' },
-        { label: 'Yangi lidlar', path: '/crm/new' },
-        { label: 'Kutayotgan lidlar', path: '/crm/waiting' },
-        { label: 'Sifatli lidlar', path: '/crm/quality' },
-        { label: 'Sifatsiz lidlar', path: '/crm/bad' },
-        { label: 'Pipeline (Kanban)', path: '/crm/pipeline' },
-      ]
-    },
+    { icon: Users, label: 'CRM (Kanban)', path: '/crm/pipeline', roles: ['admin', 'operator'] },
     { icon: PhoneCall, label: 'Qo\'ng\'iroqlar', path: '/calls', roles: ['admin', 'operator'] },
     { icon: CheckSquare, label: 'Vazifalar', path: '/tasks', roles: ['admin', 'operator'] },
     { icon: UserCog, label: 'Operatorlar', path: '/operators', roles: ['admin'] },
@@ -58,40 +45,98 @@ const DashboardLayout = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [activeToast, setActiveToast] = useState<any>(null);
+  const [shownToastIds, setShownToastIds] = useState<string[]>([]);
+  const [readIds, setReadIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('nova_read_notification_ids');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
 
   React.useEffect(() => {
     const fetchNotifications = async () => {
       try {
         const { data } = await api.get('/dashboard');
+        const list: any[] = [];
+
+        // 1. Overdue Lead calls
         if (data?.stats?.overdueLeadsList) {
-          const list = data.stats.overdueLeadsList.map((lead: any) => ({
-            id: lead.id,
-            leadId: lead.id,
-            title: `Qo'ng'iroq vaqti o'tdi: ${lead.name}`,
-            time: new Date(lead.nextCallAt).toLocaleString('uz-UZ', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }),
-            message: lead.comments && lead.comments.length > 0 ? lead.comments[0].comment : '',
-            isRead: false
-          }));
-          setNotifications(list);
-          
-          // Trigger attention-grabbing popup toast if there are notifications
-          if (list.length > 0) {
-            const first = list[0];
-            setActiveToast(first);
-            setTimeout(() => {
-              setActiveToast(null);
-            }, 4500);
-          }
+          data.stats.overdueLeadsList.forEach((lead: any) => {
+            const id = `lead-${lead.id}`;
+            list.push({
+              id,
+              type: 'lead',
+              leadId: lead.id,
+              title: `Qo'ng'iroq deadline'i: ${lead.name}`,
+              time: new Date(lead.nextCallAt).toLocaleString('uz-UZ', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }),
+              message: lead.comments && lead.comments.length > 0 ? lead.comments[0].comment : '',
+              isRead: readIds.includes(id)
+            });
+          });
+        }
+
+        // 2. Admin Assigned Tasks
+        if (data?.stats?.assignedTasksList) {
+          data.stats.assignedTasksList.forEach((task: any) => {
+            const id = `task-${task.id}`;
+            list.push({
+              id,
+              type: 'task',
+              taskId: task.id,
+              title: `📌 Admin topshiriq biriktirdi: ${task.title}`,
+              time: new Date(task.createdAt).toLocaleString('uz-UZ', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }),
+              message: task.description || (task.creator?.name ? `${task.creator.name} tomonidan berilgan topshiriq` : ''),
+              isRead: readIds.includes(id)
+            });
+          });
+        }
+
+        setNotifications(list);
+
+        // Trigger attention-grabbing popup toast ONLY for new unread notifications that haven't popped up yet
+        const newUnread = list.filter(n => !n.isRead && !shownToastIds.includes(n.id));
+        if (newUnread.length > 0) {
+          const first = newUnread[0];
+          setActiveToast(first);
+          setShownToastIds(prev => [...prev, first.id]);
+          setTimeout(() => {
+            setActiveToast(null);
+          }, 5000);
         }
       } catch (err) {
         console.error('Failed to fetch notifications', err);
       }
     };
+
     fetchNotifications();
-    // Optionally refresh every 45 seconds for quicker toast alerts
-    const interval = setInterval(fetchNotifications, 45000);
+    const interval = setInterval(fetchNotifications, 20000);
     return () => clearInterval(interval);
-  }, []);
+  }, [readIds, shownToastIds]);
+
+  const markAsRead = (id: string) => {
+    if (!readIds.includes(id)) {
+      const updated = [...readIds, id];
+      setReadIds(updated);
+      try {
+        localStorage.setItem('nova_read_notification_ids', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
+  const markAllAsRead = () => {
+    const allIds = notifications.map(n => n.id);
+    const updated = Array.from(new Set([...readIds, ...allIds]));
+    setReadIds(updated);
+    try {
+      localStorage.setItem('nova_read_notification_ids', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -121,47 +166,6 @@ const DashboardLayout = () => {
         <nav className="flex-1 py-2 overflow-y-auto custom-scrollbar">
           <ul className="space-y-1 px-3">
             {filteredMenuItems.map((item, index) => {
-              const isCrm = item.label === 'CRM';
-              const isCrmActive = location.pathname.startsWith('/crm');
-              
-              if (isCrm) {
-                return (
-                  <li key={index} className="flex flex-col">
-                    <button 
-                      onClick={() => setCrmOpen(!crmOpen)}
-                      className={`flex items-center justify-between px-4 py-3 rounded-lg transition w-full ${
-                        isCrmActive && !crmOpen ? 'bg-[#F4C400] text-[#173127] font-semibold' : 'text-gray-100 hover:bg-[#004A2B]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <item.icon size={20} className={isCrmActive && !crmOpen ? 'text-[#173127]' : 'text-gray-200'} />
-                        <span>{item.label}</span>
-                      </div>
-                      {crmOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </button>
-                    
-                    {crmOpen && item.subItems && (
-                      <ul className="mt-1 ml-4 border-l-2 border-[#007041] pl-2 space-y-1">
-                        {item.subItems.map((sub, sIdx) => (
-                          <li key={sIdx}>
-                            <NavLink 
-                              to={sub.path}
-                              end={sub.path === '/crm'}
-                              className={({isActive}) => `
-                                block px-4 py-2 rounded-lg text-sm transition
-                                ${isActive ? 'bg-[#007041] text-[#F4C400] font-medium' : 'text-gray-300 hover:text-white hover:bg-[#004A2B]'}
-                              `}
-                            >
-                              {sub.label}
-                            </NavLink>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                );
-              }
-
               return (
                 <li key={index}>
                   <NavLink 
@@ -176,7 +180,12 @@ const DashboardLayout = () => {
                     {({ isActive }) => (
                       <>
                         <item.icon size={20} className={isActive ? 'text-[#173127]' : 'text-gray-200'} />
-                        {item.label}
+                        <span className="flex-1">{item.label}</span>
+                        {item.label === 'Vazifalar' && notifications.length > 0 && (
+                          <span className="text-[11px] font-black px-2 py-0.5 rounded-full shadow-md bg-red-500 text-white animate-pulse">
+                            {notifications.length}
+                          </span>
+                        )}
                       </>
                     )}
                   </NavLink>
@@ -236,21 +245,31 @@ const DashboardLayout = () => {
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
                   <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h3 className="font-bold text-[#173127]">Bildirishnomalar</h3>
-                    <span className="text-xs text-[#008F4C] font-medium cursor-pointer hover:underline">Barchasini o'qish</span>
+                    <span 
+                      onClick={markAllAsRead}
+                      className="text-xs text-[#008F4C] font-bold cursor-pointer hover:underline"
+                    >
+                      Barchasini o'qish
+                    </span>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     {notifications.map(n => (
                       <div 
                         key={n.id} 
                         onClick={() => {
+                            markAsRead(n.id);
                             setShowNotifications(false);
-                            navigate(`/crm?leadId=${n.leadId}`);
+                            if (n.type === 'task') {
+                              navigate('/tasks');
+                            } else if (n.leadId) {
+                              navigate(`/crm?leadId=${n.leadId}`);
+                            }
                         }}
-                        className={`p-4 border-b border-gray-50 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? 'bg-blue-50/30' : ''}`}
+                        className={`p-4 border-b border-gray-50 hover:bg-gray-50 transition cursor-pointer ${!n.isRead ? 'bg-blue-50/40' : ''}`}
                       >
                         <div className="flex justify-between items-start mb-1">
                           <p className={`text-sm ${!n.isRead ? 'font-bold text-gray-800' : 'font-medium text-gray-600'}`}>{n.title}</p>
-                          {!n.isRead && <span className="w-2 h-2 bg-[#008F4C] rounded-full shrink-0 mt-1.5"></span>}
+                          {!n.isRead && <span className="w-2 h-2 bg-[#008F4C] rounded-full shrink-0 mt-1.5 animate-pulse"></span>}
                         </div>
                         {n.message && (
                           <p className="text-xs text-gray-500 mb-2 font-medium italic line-clamp-2">"{n.message}"</p>
@@ -260,9 +279,11 @@ const DashboardLayout = () => {
                         </p>
                       </div>
                     ))}
-                  </div>
-                  <div className="p-3 text-center border-t border-gray-100 bg-gray-50">
-                    <button className="text-sm font-bold text-[#008F4C] hover:text-[#005B35]">Barcha bildirishnomalar</button>
+                    {notifications.length === 0 && (
+                      <div className="p-6 text-center text-xs text-gray-400 font-medium">
+                        Bildirishnomalar yo'q
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -291,8 +312,13 @@ const DashboardLayout = () => {
       {activeToast && (
         <div 
           onClick={() => {
+            markAsRead(activeToast.id);
             setActiveToast(null);
-            navigate(`/crm?leadId=${activeToast.leadId}`);
+            if (activeToast.type === 'task') {
+              navigate('/tasks');
+            } else if (activeToast.leadId) {
+              navigate(`/crm?leadId=${activeToast.leadId}`);
+            }
           }}
           className="fixed top-6 right-6 z-[200] max-w-sm bg-gradient-to-r from-red-600 via-amber-500 to-yellow-400 text-white p-4 rounded-2xl shadow-2xl border-2 border-yellow-200 cursor-pointer animate-bounce transition transform hover:scale-105 flex items-start gap-3"
           style={{ animation: 'bounce 0.8s infinite alternate' }}

@@ -65,6 +65,15 @@ const Tasks = () => {
     }
   };
 
+  const handleClearLeadDeadline = async (leadId: number) => {
+    try {
+      await api.put(`/leads/${leadId}`, { nextCallAt: null });
+      fetchData();
+    } catch (err) {
+      console.error('Failed to clear lead deadline', err);
+    }
+  };
+
   const overdueCount = leadDeadlines.filter(l => new Date(l.nextCallAt).getTime() < Date.now()).length;
   const pendingCustomCount = tasks.filter(t => t.status === 'pending').length;
 
@@ -142,15 +151,42 @@ const Tasks = () => {
                         >
                           {lead.name}
                         </Link>
-                        {isOverdue ? (
-                          <span className="bg-red-100 text-red-700 text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-md flex items-center gap-1">
-                            <AlertTriangle size={12} /> Muddati o'tgan
-                          </span>
-                        ) : (
-                          <span className="bg-green-100 text-green-700 text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-md">
-                            Bugun
-                          </span>
-                        )}
+                        {(() => {
+                          const dueDate = new Date(lead.nextCallAt);
+                          const now = new Date();
+                          const isOverdue = dueDate.getTime() < now.getTime();
+                          const isToday = dueDate.toDateString() === now.toDateString();
+
+                          const tomorrow = new Date();
+                          tomorrow.setDate(tomorrow.getDate() + 1);
+                          const isTomorrow = dueDate.toDateString() === tomorrow.toDateString();
+
+                          if (isOverdue) {
+                            return (
+                              <span className="bg-red-100 text-red-700 text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-md flex items-center gap-1">
+                                <AlertTriangle size={12} /> Muddati o'tgan
+                              </span>
+                            );
+                          } else if (isToday) {
+                            return (
+                              <span className="bg-green-100 text-green-700 text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-md">
+                                Bugun
+                              </span>
+                            );
+                          } else if (isTomorrow) {
+                            return (
+                              <span className="bg-amber-100 text-amber-700 text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-md">
+                                Ertaga
+                              </span>
+                            );
+                          } else {
+                            return (
+                              <span className="bg-blue-100 text-blue-700 text-[10px] uppercase tracking-wider font-extrabold px-2.5 py-1 rounded-md">
+                                Rejalashtirilgan
+                              </span>
+                            );
+                          }
+                        })()}
                       </div>
 
                       <div className="space-y-2 mb-4">
@@ -178,17 +214,26 @@ const Tasks = () => {
                       )}
                     </div>
 
-                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                      <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
-                        <Clock size={14} className={isOverdue ? 'text-red-500' : 'text-gray-400'} />
-                        {new Date(lead.nextCallAt).toLocaleString('uz-UZ', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                    <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-gray-600 flex items-center gap-1">
+                        <Clock size={14} className="text-gray-400" />
+                        📅 {new Date(lead.nextCallAt).toLocaleDateString('uz-UZ', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                       </span>
-                      <Link 
-                        to={`/crm?leadId=${lead.id}`}
-                        className="bg-[#008F4C] hover:bg-[#007041] text-white px-4 py-1.5 rounded-lg text-xs font-bold transition"
-                      >
-                        Qo'ng'iroq qilish
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleClearLeadDeadline(lead.id)}
+                          title="Deadlineni olib tashlash"
+                          className="bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-500 p-1.5 rounded-lg text-xs font-bold transition"
+                        >
+                          ✕
+                        </button>
+                        <Link 
+                          to={`/crm?leadId=${lead.id}`}
+                          className="bg-[#008F4C] hover:bg-[#007041] text-white px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                        >
+                          Qo'ng'iroq
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 );

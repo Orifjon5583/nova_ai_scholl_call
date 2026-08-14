@@ -23,11 +23,10 @@ router.get('/', authenticate, async (req: any, res: any) => {
 
         // Also fetch lead deadlines (calls to be made today or overdue)
         const leadWhere = role === 'admin' ? {} : { assignedTo: userId };
-        const leadDeadlines = await prisma.lead.findMany({
+        const rawLeadDeadlines = await prisma.lead.findMany({
             where: {
                 ...leadWhere,
-                nextCallAt: { not: null },
-                status: { notIn: ['Aloqa bo\'ldi', 'Rad etdi'] }
+                nextCallAt: { not: null }
             },
             select: {
                 id: true,
@@ -44,6 +43,23 @@ router.get('/', authenticate, async (req: any, res: any) => {
                 }
             },
             orderBy: { nextCallAt: 'asc' }
+        });
+
+        // Filter out completed/sold/finished statuses
+        const isFinishedStatus = (s: string) => {
+            if (!s) return false;
+            const lower = s.toLowerCase();
+            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('aloqa') || lower.includes('yakun');
+        };
+
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        const leadDeadlines = rawLeadDeadlines.filter(l => {
+            if (isFinishedStatus(l.status)) return false;
+            const d = new Date(l.nextCallAt);
+            d.setHours(0, 0, 0, 0);
+            return d.getTime() <= todayStart.getTime();
         });
 
         // List of operators for admin dropdown

@@ -24,6 +24,8 @@ model User {
   activities    ActivityLog[]
   assignedTasks Task[]        @relation("AssignedTasks")
   createdTasks  Task[]        @relation("CreatedTasks")
+  announcements Announcement[]
+  supportTickets SupportTicket[]
 }
 
 model Lead {
@@ -108,6 +110,27 @@ model Task {
   assignedBy  Int
   assignedUser User    @relation("AssignedTasks", fields: [assignedTo], references: [id])
   creator      User    @relation("CreatedTasks", fields: [assignedBy], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model SupportTicket {
+  id          Int      @id @default(autoincrement())
+  subject     String
+  message     String
+  status      String   @default("pending") // 'pending', 'resolved'
+  operatorId  Int
+  operator    User     @relation(fields: [operatorId], references: [id])
+  response    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

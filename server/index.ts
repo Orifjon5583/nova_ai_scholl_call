@@ -72,11 +72,17 @@ import leadsRouter from './routes/leads';
 import dashboardRouter from './routes/dashboard';
 import callsRouter from './routes/calls';
 import tasksRouter from './routes/tasks';
+import operatorsRouter from './routes/operators';
+import reportsRouter from './routes/reports';
+import announcementsRouter from './routes/announcements';
 
 app.use('/api/leads', leadsRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/calls', callsRouter);
 app.use('/api/tasks', tasksRouter);
+app.use('/api/operators', operatorsRouter);
+app.use('/api/reports', reportsRouter);
+app.use('/api/announcements', announcementsRouter);
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
