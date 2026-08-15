@@ -151,10 +151,80 @@ const DashboardLayout = () => {
     return 'Dashboard';
   };
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
-    <div className="flex h-screen bg-[#F5F7F5]">
-      {/* Sidebar */}
-      <aside className="w-64 bg-[#005B35] text-white flex flex-col shadow-xl z-20">
+    <div className="flex h-screen bg-[#F5F7F5] overflow-hidden">
+      {/* Mobile Sidebar Overlay / Drawer */}
+      {isMobileMenuOpen && (
+        <div 
+          onClick={() => setIsMobileMenuOpen(false)}
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
+        />
+      )}
+
+      {/* Slide-out Mobile Sidebar */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-72 bg-[#005B35] text-white flex flex-col shadow-2xl transition-transform duration-300 transform md:hidden
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        <div className="p-5 flex items-center justify-between border-b border-[#004A2B]">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="NOVA" className="h-10 bg-white rounded-full p-1" />
+            <div>
+              <h2 className="font-bold text-lg leading-tight tracking-wide text-[#F4C400]">NOVA</h2>
+              <span className="text-[10px] text-green-200 uppercase tracking-widest block">International AI School</span>
+            </div>
+          </div>
+          <button 
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="text-gray-300 hover:text-white p-2 rounded-lg"
+          >
+            ✕
+          </button>
+        </div>
+
+        <nav className="flex-1 py-4 overflow-y-auto px-3 space-y-1">
+          {filteredMenuItems.map((item, index) => (
+            <NavLink 
+              key={index}
+              to={item.path}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={({isActive}) => `
+                flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition text-sm
+                ${isActive 
+                  ? 'bg-[#F4C400] text-[#173127] font-bold shadow-md' 
+                  : 'text-gray-100 hover:bg-[#004A2B]'}
+              `}
+            >
+              {({ isActive }) => (
+                <>
+                  <item.icon size={20} className={isActive ? 'text-[#173127]' : 'text-gray-200'} />
+                  <span className="flex-1">{item.label}</span>
+                  {item.label === 'Vazifalar' && notifications.length > 0 && (
+                    <span className="text-[11px] font-black px-2 py-0.5 rounded-full shadow-md bg-red-500 text-white animate-pulse">
+                      {notifications.length}
+                    </span>
+                  )}
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-[#004A2B]">
+          <button 
+            onClick={handleLogout}
+            className="flex items-center gap-3 text-gray-300 hover:text-red-400 transition w-full px-4 py-2.5 hover:bg-[#004A2B] rounded-xl text-sm font-semibold"
+          >
+            <LogOut size={20} />
+            <span>Chiqish</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-64 bg-[#005B35] text-white flex-col shadow-xl z-20 shrink-0">
         <div className="p-6 flex items-center gap-3">
           <img src="/logo.png" alt="NOVA" className="h-10 bg-white rounded-full p-1" />
           <div>
@@ -209,10 +279,16 @@ const DashboardLayout = () => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden bg-[#F8FAFC]">
         {/* Topbar */}
-        <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-8 shadow-sm z-10 relative">
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-bold text-[#173127] flex items-center gap-3">
-              <Menu size={20} className="text-gray-400 cursor-pointer hover:text-gray-600" /> {getPageTitle()}
+        <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 md:px-8 shadow-sm z-10 relative shrink-0">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 md:hidden"
+            >
+              <Menu size={22} />
+            </button>
+            <h1 className="text-base md:text-lg font-bold text-[#173127]">
+              {getPageTitle()}
             </h1>
           </div>
           <div className="flex items-center gap-6">
@@ -303,10 +379,34 @@ const DashboardLayout = () => {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto p-4 md:p-6 pb-20 md:pb-6">
           <Outlet />
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-30 flex items-center justify-around h-16 px-1 shadow-2xl">
+        {filteredMenuItems.slice(0, 5).map((item, index) => (
+          <NavLink
+            key={index}
+            to={item.path}
+            className={({ isActive }) => `
+              flex flex-col items-center justify-center w-full py-1 text-[11px] transition-all relative
+              ${isActive ? 'text-[#005B35] font-bold scale-105' : 'text-gray-400 hover:text-gray-600'}
+            `}
+          >
+            {({ isActive }) => (
+              <>
+                <item.icon size={20} className={isActive ? 'text-[#005B35]' : 'text-gray-400'} />
+                <span className="truncate max-w-[64px] leading-tight mt-0.5">{item.label.split(' ')[0]}</span>
+                {item.label === 'Vazifalar' && notifications.length > 0 && (
+                  <span className="absolute top-1 right-4 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+                )}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
 
       {/* Attention-grabbing Dynamic Toast Banner */}
       {activeToast && (

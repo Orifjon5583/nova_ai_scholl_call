@@ -432,7 +432,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   );
 
   const renderKanbanView = () => (
-    <div className="flex gap-4 overflow-x-auto pb-4 flex-1 custom-scrollbar">
+    <div className="flex gap-4 overflow-x-auto pb-4 flex-1 custom-scrollbar snap-x snap-mandatory">
       {columns.map((col) => {
         // Fallbacks for mapping existing legacy statuses to the new dynamic columns
         const mappedCol = col === 'Yangi' ? 'waiting' : col;
@@ -441,7 +441,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
         
         const isDefaultCol = ['Yangi', 'Kutilmoqda', 'Qayta qo\'ng\'iroq', 'Aloqa bo\'ldi'].includes(col);
         return (
-        <div key={col} className="w-80 flex-shrink-0 bg-[#F1F5F9] rounded-xl p-3 flex flex-col max-h-full">
+        <div key={col} className="w-[85vw] sm:w-80 flex-shrink-0 bg-[#F1F5F9] rounded-xl p-3 flex flex-col max-h-full snap-center shadow-sm">
           <div className="flex items-center justify-between mb-3 px-1">
             <h4 className="font-bold text-gray-700 uppercase text-xs tracking-wider flex gap-2 items-center">
                 {col} <span className="bg-gray-200 text-gray-600 text-xs px-2 py-0.5 rounded-full">{colLeads.length}</span>
