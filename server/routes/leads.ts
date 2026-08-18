@@ -147,30 +147,71 @@ router.post('/import', authenticate, async (req: any, res: any) => {
 router.post('/import-google-sheets', authenticate, async (req: any, res: any) => {
     try {
         const { sheetUrl } = req.body;
-        if (!sheetUrl) return res.status(400).json({ error: 'Google Sheets havolasi ko\'rsatilmadi' });
+        if (!sheetUrl || typeof sheetUrl !== 'string') {
+            return res.status(400).json({ error: 'Google Sheets havolasi ko\'rsatilmadi' });
+        }
 
-        // Convert Google Sheets URL to CSV format URL
-        let csvUrl = sheetUrl;
-        if (sheetUrl.includes('/spreadsheets/d/')) {
-            const match = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-            if (match && match[1]) {
-                const sheetId = match[1];
-                csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
-            }
+        let sheetId = '';
+        let gid = '';
+
+        const idMatch = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+        if (idMatch && idMatch[1]) {
+            sheetId = idMatch[1];
+        }
+
+        const gidMatch = sheetUrl.match(/[?&#]gid=([0-9]+)/);
+        if (gidMatch && gidMatch[1]) {
+            gid = gidMatch[1];
+        }
+
+        // Potential URLs to attempt fetching CSV data
+        const urlsToTry = [];
+        if (sheetId) {
+            urlsToTry.push(`https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv${gid ? `&gid=${gid}` : ''}`);
+            urlsToTry.push(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv${gid ? `&gid=${gid}` : ''}`);
+            urlsToTry.push(`https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv${gid ? `&gid=${gid}` : ''}`);
         } else if (sheetUrl.includes('/pubhtml')) {
-            csvUrl = sheetUrl.replace('/pubhtml', '/pub?output=csv');
+            urlsToTry.push(sheetUrl.replace('/pubhtml', '/pub?output=csv'));
+        } else {
+            urlsToTry.push(sheetUrl);
         }
 
-        const response = await fetch(csvUrl);
-        if (!response.ok) {
-            return res.status(400).json({ error: 'Google Sheets faylini o\'qib bo\'lmadi. Iltimos, havola kirish uchun ochiq ("Anyone with the link can view") ekanligini tekshiring.' });
+        let csvText = '';
+        let fetchSuccess = false;
+
+        for (const targetUrl of urlsToTry) {
+            try {
+                const response = await fetch(targetUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/csv,text/plain,*/*'
+                    }
+                });
+
+                if (response.ok) {
+                    const text = await response.text();
+                    // Ensure the content is actually CSV and not a Google Login/HTML page
+                    const trimmed = text.trim();
+                    if (trimmed && !trimmed.toLowerCase().startsWith('<!doctype') && !trimmed.toLowerCase().startsWith('<html')) {
+                        csvText = trimmed;
+                        fetchSuccess = true;
+                        break;
+                    }
+                }
+            } catch (err) {
+                console.error(`Failed to fetch from ${targetUrl}`, err);
+            }
         }
 
-        const csvText = await response.text();
+        if (!fetchSuccess || !csvText) {
+            return res.status(400).json({ 
+                error: 'Google Sheets faylini o\'qib bo\'lmadi.\nIltimos, Google Sheets jadvalida "Share" (Поделиться) tugmasini bosib, "Anyone with the link can view" (Все, u кого есть ссылка) qilib sozlang.' 
+            });
+        }
+
         const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
-
         if (lines.length < 2) {
-            return res.status(400).json({ error: 'Google Sheets jadvalida ma\'lumotlar topilmadi' });
+            return res.status(400).json({ error: 'Google Sheets jadvalida yetarli ma\'lumotlar topilmadi' });
         }
 
         // Parse CSV Header
@@ -193,25 +234,32 @@ router.post('/import-google-sheets', authenticate, async (req: any, res: any) =>
             return result;
         };
 
-        const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
+        const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().replace(/['"]/g, ''));
         
-        // Find indexes
-        const nameIdx = headers.findIndex(h => h.includes('ism') || h.includes('name') || h.includes('fio'));
-        const phoneIdx = headers.findIndex(h => h.includes('tel') || h.includes('phone') || h.includes('nomer'));
-        const sourceIdx = headers.findIndex(h => h.includes('manba') || h.includes('source'));
-        const regionIdx = headers.findIndex(h => h.includes('hudud') || h.includes('viloyat') || h.includes('region'));
-        const gradeIdx = headers.findIndex(h => h.includes('sinf') || h.includes('guruh') || h.includes('grade'));
+        // Find indexes with flexible keyword matching
+        const findColIdx = (...keywords: string[]) => {
+            return headers.findIndex(h => keywords.some(k => h.includes(k)));
+        };
+
+        const nameIdx = findColIdx('ism', 'name', 'fio', 'full', 'foydalanuvchi');
+        const phoneIdx = findColIdx('tel', 'phone', 'nomer', 'num', 'raqam');
+        const sourceIdx = findColIdx('manba', 'source', 'kanal');
+        const regionIdx = findColIdx('hudud', 'viloyat', 'region', 'tuman', 'shahar');
+        const gradeIdx = findColIdx('sinf', 'guruh', 'grade', 'class');
 
         const createdLeads = [];
         let duplicateCount = 0;
 
         for (let i = 1; i < lines.length; i++) {
-            const cols = parseCSVLine(lines[i]);
+            const cols = parseCSVLine(lines[i]).map(c => c.replace(/^['"]|['"]$/g, ''));
             if (cols.length === 0) continue;
 
-            const name = nameIdx !== -1 ? cols[nameIdx] : cols[0] || 'Noma\'lum';
-            const phone = phoneIdx !== -1 ? cols[phoneIdx] : cols[1] || '';
-            if (!phone) continue; // Skip lines with no phone number
+            const rawName = nameIdx !== -1 ? cols[nameIdx] : cols[0];
+            const rawPhone = phoneIdx !== -1 ? cols[phoneIdx] : cols[1];
+            
+            const name = (rawName || 'Noma\'lum').trim();
+            const phone = (rawPhone || '').trim();
+            if (!phone || phone.length < 5) continue; // Skip lines without valid phone
 
             const source = sourceIdx !== -1 ? cols[sourceIdx] : 'Google Sheets';
             const region = regionIdx !== -1 ? cols[regionIdx] : null;

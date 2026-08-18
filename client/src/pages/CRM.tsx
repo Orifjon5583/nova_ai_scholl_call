@@ -91,7 +91,12 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
       alert(`Muvaffaqiyatli ${res.data.count} ta lid Google Sheets'dan import qilindi!${dupMsg}`);
     } catch (err: any) {
       console.error('Google Sheets import failed', err);
-      alert(err.response?.data?.error || 'Google Sheets havolasidan o\'qishda xatolik yuz berdi');
+      const serverErr = err.response?.data?.error;
+      if (serverErr) {
+        alert(serverErr);
+      } else {
+        alert("Google Sheets havolasidan o'qishda xatolik yuz berdi.\n\nIltimos, Google Sheets faylida 'Share' (Поделиться) tugmasini bosib, 'Anyone with the link can view' (Все, u кого есть ссылка) qilib sozlang.");
+      }
     } finally {
       setGoogleSheetsLoading(false);
     }
