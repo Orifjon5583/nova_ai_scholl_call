@@ -62,7 +62,7 @@ router.get('/', authenticate, async (req: any, res: any) => {
         const isFinishedStatus = (s: string) => {
             if (!s) return false;
             const lower = s.toLowerCase();
-            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('aloqa') || lower.includes('yakun');
+            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('yakun');
         };
 
         const overdueLeadsList = rawOverdueLeadsList.filter(l => {
@@ -99,19 +99,6 @@ router.get('/', authenticate, async (req: any, res: any) => {
         const todayCallDuration = todayCalls.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
 
         // --- Pie Chart: Lidlar manbalari ---
-        const isFinishedStatus = (s: string) => {
-            if (!s) return false;
-            const lower = s.toLowerCase();
-            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('yakun');
-        };
-
-        const overdueLeadsList = rawOverdueLeadsList.filter(l => {
-            if (isFinishedStatus(l.status)) return false;
-            const d = new Date(l.nextCallAt);
-            d.setHours(0, 0, 0, 0);
-            return d.getTime() <= todayStart.getTime();
-        });
-        const overdueLeads = overdueLeadsList.length;
 
         const sourceGroups = await prisma.lead.groupBy({
             by: ['source'],
