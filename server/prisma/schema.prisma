@@ -18,6 +18,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   assignedLeads Lead[]     @relation("OperatorLeads")
+  deletedLeads  Lead[]     @relation("DeletedLeads")
   callLogs      CallLog[]
   comments      Comment[]
   leadDelays    LeadDelay[]
@@ -40,6 +41,10 @@ model Lead {
   status             String    @default("waiting")
   assignedTo         Int?
   operator           User?     @relation("OperatorLeads", fields: [assignedTo], references: [id])
+  deletedAt          DateTime?
+  deletionReason     String?
+  deletedById        Int?
+  deletedBy          User?     @relation("DeletedLeads", fields: [deletedById], references: [id])
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   nextCallAt         DateTime?

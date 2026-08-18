@@ -11,8 +11,8 @@ router.get('/', authenticate, async (req: any, res: any) => {
         const userId = req.user.id;
         const { sortBy, regions, grade } = req.query;
 
-        // Admin sees all leads, Operator sees only assigned leads
-        const whereClause: any = role === 'admin' ? {} : { assignedTo: userId };
+        // Admin sees all active leads, Operator sees only assigned active leads
+        const whereClause: any = role === 'admin' ? { deletedAt: null } : { assignedTo: userId, deletedAt: null };
         
         if (regions) {
             whereClause.region = { in: (regions as string).split(',') };
@@ -493,6 +493,86 @@ router.post('/:id/delay', authenticate, async (req: any, res: any) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// GET /api/leads/deleted - Admin/Super Admin uchun o'chirilgan lidlar va o'chirish sabablari
+router.get('/deleted', authenticate, async (req: any, res: any) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Ruxsat etilmagan. Faqat Admin uchun!' });
+        }
+
+        const deletedLeads = await prisma.lead.findMany({
+            where: {
+                deletedAt: { not: null }
+            },
+            include: {
+                operator: { select: { id: true, name: true } },
+                deletedBy: { select: { id: true, name: true, role: true } }
+            },
+            orderBy: { deletedAt: 'desc' }
+        });
+
+        res.json(deletedLeads);
+    } catch (error) {
+        console.error('Fetch deleted leads error', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// DELETE /api/leads/:id - Lidni sababi bilan o'chirish (Soft delete)
+router.delete('/:id', authenticate, async (req: any, res: any) => {
+    try {
+        const leadId = parseInt(req.params.id);
+        const { reason } = req.body;
+
+        if (!reason || !reason.trim()) {
+            return res.status(400).json({ error: 'Lidni o\'chirish sababini kiritish majburiy!' });
+        }
+
+        const existing = await prisma.lead.findUnique({ where: { id: leadId } });
+        if (!existing) {
+            return res.status(404).json({ error: 'Lid topilmadi' });
+        }
+
+        const updatedLead = await prisma.lead.update({
+            where: { id: leadId },
+            data: {
+                deletedAt: new Date(),
+                deletionReason: reason.trim(),
+                deletedById: req.user.id
+            }
+        });
+
+        res.json({ message: 'Lid muvaffaqiyatli o\'chirildi', lead: updatedLead });
+    } catch (error) {
+        console.error('Delete lead error', error);
+        res.status(500).json({ error: 'Lidni o\'chirishda xatolik' });
+    }
+});
+
+// POST /api/leads/:id/restore - O'chirilgan lidni qayta tiklash (Faqat Admin)
+router.post('/:id/restore', authenticate, async (req: any, res: any) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Faqat Admin qayta tiklay oladi!' });
+        }
+
+        const leadId = parseInt(req.params.id);
+        const restoredLead = await prisma.lead.update({
+            where: { id: leadId },
+            data: {
+                deletedAt: null,
+                deletionReason: null,
+                deletedById: null
+            }
+        });
+
+        res.json({ message: 'Lid muvaffaqiyatli qayta tiklandi', lead: restoredLead });
+    } catch (error) {
+        console.error('Restore lead error', error);
+        res.status(500).json({ error: 'Lidni tiklashda xatolik' });
     }
 });
 

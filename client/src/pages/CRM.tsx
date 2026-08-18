@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, Download, Filter, List, LayoutGrid, ChevronLeft, Phone, Clock, MessageSquare, Save, MoreHorizontal, FileSpreadsheet, AlertTriangle, Check, X } from 'lucide-react';
+import { Search, Plus, Download, Filter, List, LayoutGrid, ChevronLeft, Phone, Clock, MessageSquare, Save, MoreHorizontal, FileSpreadsheet, AlertTriangle, Check, X, Trash2, RotateCcw, Trash } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../api';
 
@@ -17,6 +17,86 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Current user from localStorage
+  const currentUser = React.useMemo(() => {
+    try {
+      const uStr = localStorage.getItem('user');
+      return uStr ? JSON.parse(uStr) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Deletion Reason Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [leadToDelete, setLeadToDelete] = useState<any>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Deleted Leads Archive Modal State (For Admin/Super Admin)
+  const [showDeletedLeadsModal, setShowDeletedLeadsModal] = useState(false);
+  const [deletedLeadsList, setDeletedLeadsList] = useState<any[]>([]);
+  const [deletedLeadsLoading, setDeletedLeadsLoading] = useState(false);
+
+  const handleDeleteLeadClick = (e: React.MouseEvent, lead: any) => {
+    e.stopPropagation();
+    setLeadToDelete(lead);
+    setDeleteReason('');
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteReason.trim()) {
+      alert("Iltimos, lidni o'chirish sababini yozing!");
+      return;
+    }
+    if (!leadToDelete) return;
+
+    setDeleteLoading(true);
+    try {
+      await api.delete(`/leads/${leadToDelete.id}`, { data: { reason: deleteReason.trim() } });
+      setShowDeleteModal(false);
+      if (selectedLead?.id === leadToDelete.id) {
+        setSelectedLead(null);
+      }
+      setLeadToDelete(null);
+      setDeleteReason('');
+      fetchLeads();
+      alert("Lid muvaffaqiyatli o'chirildi!");
+    } catch (err: any) {
+      console.error('Delete lead failed', err);
+      alert(err.response?.data?.error || "Lidni o'chirishda xatolik yuz berdi");
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const fetchDeletedLeads = async () => {
+    setDeletedLeadsLoading(true);
+    try {
+      const res = await api.get('/leads/deleted');
+      setDeletedLeadsList(res.data);
+    } catch (err: any) {
+      console.error('Fetch deleted leads failed', err);
+      alert("O'chirilgan lidlar ro'yxatini yuklashda xatolik");
+    } finally {
+      setDeletedLeadsLoading(false);
+    }
+  };
+
+  const handleRestoreLead = async (leadId: number) => {
+    if (!confirm("Ushbu lidni qayta tiklamoqchimisiz?")) return;
+    try {
+      await api.post(`/leads/${leadId}/restore`);
+      fetchDeletedLeads();
+      fetchLeads();
+      alert("Lid muvaffaqiyatli qayta tiklandi!");
+    } catch (err: any) {
+      console.error('Restore lead failed', err);
+      alert("Lidni qayta tiklashda xatolik");
+    }
+  };
 
   // Dynamic Kanban Columns (Persisted in localStorage)
   const [columns, setColumns] = useState<string[]>(() => {
@@ -461,9 +541,9 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                     {lead.nextCallAt ? new Date(lead.nextCallAt).toLocaleString('uz-UZ', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '-'}
                 </td>
                 <td className="py-3 px-4 text-sm text-red-500 font-bold">{lead.delayCount > 0 ? lead.delayCount : '-'}</td>
-                <td className="py-3 px-4 text-sm flex gap-2">
-                    <button className="text-[#008F4C] hover:text-[#005B35]"><Phone size={16} /></button>
-                    <button className="text-gray-400 hover:text-gray-600"><MessageSquare size={16} /></button>
+                <td className="py-3 px-4 text-sm flex gap-2" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => setSelectedLead(lead)} title="Qo'ng'iroq" className="text-[#008F4C] hover:text-[#005B35]"><Phone size={16} /></button>
+                    <button onClick={(e) => handleDeleteLeadClick(e, lead)} title="Lidni o'chirish" className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
                 </td>
               </tr>
             ))}
@@ -539,7 +619,16 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 )}
                 <div className="flex justify-between items-start mb-2">
                   <span className="font-bold text-[#173127] text-base">{lead.name}</span>
-                  {lead.delayCount > 0 && <span className="text-[10px] bg-red-50 border border-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">{lead.delayCount} marta surilgan</span>}
+                  <div className="flex items-center gap-1">
+                    {lead.delayCount > 0 && <span className="text-[10px] bg-red-50 border border-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">{lead.delayCount} marta surilgan</span>}
+                    <button
+                      onClick={(e) => handleDeleteLeadClick(e, lead)}
+                      title="Lidni o'chirish"
+                      className="text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition ml-1"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
                 <div className="text-sm text-gray-600 mb-2 font-medium">{lead.phone}</div>
                 {lead.region && <div className="inline-block bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded mb-3">{lead.region}</div>}
@@ -726,6 +815,17 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
             >
               <FileSpreadsheet size={18} /> Google Sheets import
             </button>
+            {currentUser?.role === 'admin' && (
+              <button 
+                  onClick={() => {
+                    fetchDeletedLeads();
+                    setShowDeletedLeadsModal(true);
+                  }}
+                  className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-sm"
+              >
+                <Trash2 size={18} /> O'chirilgan lidlar (Arxiv)
+              </button>
+            )}
             <div className="relative">
                 <button 
                     onClick={() => setShowFilterDropdown(!showFilterDropdown)}
@@ -839,15 +939,24 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 <p className="text-sm text-gray-400 mt-1 flex items-center gap-1">Lid manbasi: <span className="text-gray-600 font-bold">{selectedLead.source || 'Instagram'}</span></p>
               </div>
             </div>
-            <button 
-              onClick={() => {
-                setSelectedLead(null);
-                if(isCalling) { clearInterval(callTimer); setIsCalling(false); }
-              }}
-              className="p-2 bg-gray-100 hover:bg-red-50 hover:text-red-500 rounded-full transition text-gray-500 absolute top-6 right-6"
-            >
-              X
-            </button>
+            <div className="flex items-center gap-2 absolute top-6 right-6">
+              <button
+                onClick={(e) => handleDeleteLeadClick(e, selectedLead)}
+                title="Lidni o'chirish"
+                className="p-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl transition font-bold flex items-center gap-1.5 px-3 text-xs shadow-sm"
+              >
+                <Trash2 size={16} /> O'chirish
+              </button>
+              <button 
+                onClick={() => {
+                  setSelectedLead(null);
+                  if(isCalling) { clearInterval(callTimer); setIsCalling(false); }
+                }}
+                className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition text-gray-500 font-bold"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
           {/* Action Buttons */}
@@ -1336,6 +1445,148 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                     className="px-6 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg text-sm shadow-md transition flex items-center gap-2"
                   >
                     {googleSheetsLoading ? 'O\'qilmoqda...' : '📥 Google Sheets\'dan o\'qish va saqlash'}
+                  </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Deletion Reason Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-[130] bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 relative border border-gray-100 animate-in fade-in zoom-in duration-200">
+                <button 
+                  onClick={() => setShowDeleteModal(false)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold p-1 rounded-full hover:bg-gray-100"
+                >
+                  <X size={20} />
+                </button>
+
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center font-bold">
+                    <Trash2 size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-extrabold text-[#173127]">Lidni o'chirish</h3>
+                    <p className="text-xs text-gray-500 font-medium">{leadToDelete?.name} ({leadToDelete?.phone})</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 my-5">
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 uppercase block mb-1">O'chirish sababini yozing <span className="text-red-500">*</span></label>
+                    <textarea 
+                      rows={3}
+                      value={deleteReason}
+                      onChange={e => setDeleteReason(e.target.value)}
+                      placeholder="Nima uchun ushbu lid o'chirilmoqda? (Masalan: Xato raqam, Qiziqishi yo'q, Takroriy lid...)"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500 custom-scrollbar"
+                    />
+                  </div>
+                  
+                  <p className="text-[11px] text-gray-500 bg-amber-50 border border-amber-200 p-2.5 rounded-lg leading-tight font-medium">
+                    ⚠️ O'chirilgan lid operatorlarda va CRM bo'limlarida ko'rinmaydi. Lekin <strong>Super Admin</strong> barcha o'chirilgan lidlar va siz yozgan sababni ko'rib tura oladi.
+                  </p>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                  <button 
+                    onClick={() => setShowDeleteModal(false)}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-sm transition"
+                  >
+                    Bekor qilish
+                  </button>
+                  <button 
+                    onClick={handleConfirmDelete}
+                    disabled={!deleteReason.trim() || deleteLoading}
+                    className="px-6 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg text-sm shadow-md transition flex items-center gap-2"
+                  >
+                    {deleteLoading ? 'O\'chirilmoqda...' : '🗑️ O\'chirishni tasdiqlash'}
+                  </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Deleted Leads Archive Modal (For Super Admin) */}
+      {showDeletedLeadsModal && (
+        <div className="fixed inset-0 z-[130] bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+            <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-6 relative border border-gray-100 animate-in fade-in zoom-in duration-200 max-h-[90vh] flex flex-col">
+                <button 
+                  onClick={() => setShowDeletedLeadsModal(false)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold p-1 rounded-full hover:bg-gray-100"
+                >
+                  <X size={20} />
+                </button>
+
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-rose-100 text-rose-700 rounded-xl flex items-center justify-center font-bold">
+                    <Trash size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-extrabold text-[#173127]">O'chirilgan lidlar arxivi</h3>
+                    <p className="text-xs text-gray-500 font-medium">Faqat Super Admin uchun maxsus bo'lim</p>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar border rounded-xl my-4">
+                  {deletedLeadsLoading ? (
+                    <div className="p-8 text-center text-sm font-bold text-gray-500">Yuklanmoqda...</div>
+                  ) : deletedLeadsList.length === 0 ? (
+                    <div className="p-8 text-center text-sm font-bold text-gray-500 italic">O'chirilgan lidlar yo'q ✨</div>
+                  ) : (
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead className="bg-gray-100 sticky top-0 font-bold text-gray-700">
+                        <tr>
+                          <th className="p-3 border-b">#</th>
+                          <th className="p-3 border-b">Lid Ismi va Tel</th>
+                          <th className="p-3 border-b">O'chirilgan Vaqti</th>
+                          <th className="p-3 border-b">Kim O'chirgan</th>
+                          <th className="p-3 border-b">O'chirish Sababi</th>
+                          <th className="p-3 border-b text-right">Harakat</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {deletedLeadsList.map((lead, idx) => (
+                          <tr key={lead.id} className="hover:bg-rose-50/50">
+                            <td className="p-3 font-mono text-gray-400">{idx + 1}</td>
+                            <td className="p-3">
+                              <div className="font-bold text-gray-800 text-sm">{lead.name}</div>
+                              <div className="text-gray-500 font-mono text-xs">{lead.phone}</div>
+                            </td>
+                            <td className="p-3 text-gray-600 font-medium">
+                              {lead.deletedAt ? new Date(lead.deletedAt).toLocaleString('uz-UZ') : '-'}
+                            </td>
+                            <td className="p-3 font-bold text-gray-700">
+                              👤 {lead.deletedBy?.name || 'Noma\'lum'} ({lead.deletedBy?.role || 'operator'})
+                            </td>
+                            <td className="p-3 max-w-xs">
+                              <div className="bg-red-50 text-red-700 border border-red-200 p-2 rounded-lg font-bold text-xs leading-relaxed">
+                                💬 "{lead.deletionReason}"
+                              </div>
+                            </td>
+                            <td className="p-3 text-right">
+                              <button
+                                onClick={() => handleRestoreLead(lead.id)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition flex items-center gap-1 ml-auto shadow-sm"
+                              >
+                                <RotateCcw size={14} /> Qayta tiklash
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                  <span className="text-xs font-bold text-gray-500">Jami o'chirilgan lidlar: <strong className="text-rose-600">{deletedLeadsList.length} ta</strong></span>
+                  <button 
+                    onClick={() => setShowDeletedLeadsModal(false)}
+                    className="px-5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-sm transition"
+                  >
+                    Yopish
                   </button>
                 </div>
             </div>
