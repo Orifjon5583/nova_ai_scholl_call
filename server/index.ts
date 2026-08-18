@@ -84,6 +84,28 @@ app.use('/api/operators', operatorsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/announcements', announcementsRouter);
 
-app.listen(PORT, () => {
+const ensureAdminExists = async () => {
+    try {
+        const admin = await prisma.user.findFirst({ where: { role: 'admin' } });
+        if (!admin) {
+            const hashedPassword = await bcrypt.hash('admin123', 10);
+            await prisma.user.create({
+                data: {
+                    name: 'Super Admin',
+                    username: 'admin',
+                    password: hashedPassword,
+                    role: 'admin',
+                    phone: '+998901234567'
+                }
+            });
+            console.log('Default admin user (admin / admin123) created successfully!');
+        }
+    } catch (e) {
+        console.error('Failed to ensure admin user exists', e);
+    }
+};
+
+app.listen(PORT, async () => {
+    await ensureAdminExists();
     console.log(`Server running on http://localhost:${PORT}`);
 });
