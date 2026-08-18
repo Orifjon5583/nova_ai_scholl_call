@@ -9,13 +9,17 @@ router.get('/', authenticate, async (req: any, res: any) => {
     try {
         const role = req.user.role;
         const userId = req.user.id;
-        const { sortBy, regions } = req.query;
+        const { sortBy, regions, grade } = req.query;
 
         // Admin sees all leads, Operator sees only assigned leads
         const whereClause: any = role === 'admin' ? {} : { assignedTo: userId };
         
         if (regions) {
             whereClause.region = { in: (regions as string).split(',') };
+        }
+
+        if (grade) {
+            whereClause.grade = grade;
         }
 
         let orderByClause: any = { createdAt: 'desc' };
@@ -49,7 +53,7 @@ router.get('/', authenticate, async (req: any, res: any) => {
 // POST /api/leads - Yangi lid qo'shish
 router.post('/', authenticate, async (req: any, res: any) => {
     try {
-        const { name, phone, source, region } = req.body;
+        const { name, phone, source, region, grade } = req.body;
         
         const lead = await prisma.lead.create({
             data: {
@@ -57,6 +61,7 @@ router.post('/', authenticate, async (req: any, res: any) => {
                 phone,
                 source,
                 region,
+                grade: grade || null,
                 assignedTo: req.user.role === 'admin' ? null : req.user.id
             }
         });
@@ -176,7 +181,7 @@ router.put('/:id', authenticate, async (req: any, res: any) => {
 router.post('/:id/call', authenticate, async (req: any, res: any) => {
     try {
         const leadId = parseInt(req.params.id);
-        const { durationSeconds, result, comment, status, quality, nextCallAt } = req.body;
+        const { durationSeconds, result, comment, status, quality, nextCallAt, grade } = req.body;
 
         const currentLead = await prisma.lead.findUnique({ where: { id: leadId } });
         if (!currentLead) return res.status(404).json({ error: 'Lead not found' });
@@ -219,6 +224,7 @@ router.post('/:id/call', authenticate, async (req: any, res: any) => {
 
         if (status) leadUpdateData.status = status;
         if (quality) leadUpdateData.quality = quality;
+        if (grade) leadUpdateData.grade = grade;
 
         if (nextCallAt !== undefined) {
             const newDate = nextCallAt ? new Date(nextCallAt) : null;

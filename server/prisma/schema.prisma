@@ -34,6 +34,7 @@ model Lead {
   phone              String
   source             String?
   region             String?
+  grade              String?   // '1-sinf', '2-sinf', ..., '8-sinf'
   quality            String    @default("unknown")
   status             String    @default("waiting")
   assignedTo         Int?

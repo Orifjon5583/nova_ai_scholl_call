@@ -9,9 +9,11 @@ interface CRMProps {
   isKanban?: boolean;
 }
 
+const schoolGrades = ['1-sinf', '2-sinf', '3-sinf', '4-sinf', '5-sinf', '6-sinf', '7-sinf', '8-sinf'];
+
 const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   const [searchParams] = useSearchParams();
-  const [view, setView] = useState<'list' | 'kanban'>(isKanban ? 'kanban' : 'list');
+  const [view, setView] = useState<'list' | 'kanban' | 'grades'>(isKanban ? 'kanban' : 'list');
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -308,13 +310,14 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
     }
   };
 
-  const handleUpdateStatus = async (status?: string, quality?: string, nextCallAt?: string, region?: string) => {
+  const handleUpdateStatus = async (status?: string, quality?: string, nextCallAt?: string, region?: string, grade?: string) => {
     try {
       const payload: any = {};
       if (status !== undefined) payload.status = status;
       if (quality !== undefined) payload.quality = quality;
       if (nextCallAt !== undefined) payload.nextCallAt = nextCallAt;
       if (region !== undefined) payload.region = region;
+      if (grade !== undefined) payload.grade = grade;
       
       await api.put(`/leads/${selectedLead.id}`, payload);
       
@@ -393,7 +396,10 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 <td className="py-3 px-4"><input type="checkbox" className="rounded border-gray-300 text-[#008F4C] focus:ring-[#008F4C]" /></td>
                 <td className="py-3 px-4 text-xs font-medium text-gray-500">#{lead.id}</td>
                 <td className="py-3 px-4">
-                    <div className="text-sm font-bold text-[#173127]">{lead.name}</div>
+                    <div className="text-sm font-bold text-[#173127] flex items-center gap-2">
+                      {lead.name}
+                      {lead.grade && <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded">🎓 {lead.grade}</span>}
+                    </div>
                     <div className="text-[10px] text-gray-400 font-medium mt-0.5">{getTimeAgo(lead.createdAt)} kelib tushdi</div>
                 </td>
                 <td className="py-3 px-4 text-sm text-gray-600">{lead.phone}</td>
@@ -473,6 +479,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 </div>
                 <div className="text-sm text-gray-600 mb-2 font-medium">{lead.phone}</div>
                 {lead.region && <div className="inline-block bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded mb-3">{lead.region}</div>}
+                {lead.grade && <div className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded mb-3 ml-1.5">🎓 {lead.grade}</div>}
                 
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-gray-500 flex items-center gap-1">👤 {lead.operator?.name || 'Biriktirilmagan'}</span>
@@ -523,6 +530,121 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
       </div>
     </div>
   );
+
+  const renderGradesView = () => {
+    // Only show quality / sold leads or leads with assigned grades
+    const qualityOrSoldLeads = filteredLeads.filter(l => {
+      const isQuality = l.quality === 'Sifatli' || l.quality === 'quality';
+      const isSold = l.status && (l.status.toLowerCase().includes('sot') || l.status.toLowerCase().includes('shartnoma'));
+      return isQuality || isSold || l.grade;
+    });
+
+    const unassignedGradeLeads = qualityOrSoldLeads.filter(l => !l.grade);
+
+    return (
+      <div className="flex gap-4 overflow-x-auto pb-4 flex-1 custom-scrollbar snap-x snap-mandatory">
+        {schoolGrades.map((grade) => {
+          const gradeLeads = qualityOrSoldLeads.filter(l => l.grade === grade);
+          return (
+            <div key={grade} className="w-[85vw] sm:w-80 flex-shrink-0 bg-[#F1F5F9] rounded-xl p-3 flex flex-col max-h-full snap-center shadow-sm border border-gray-200">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <h4 className="font-bold text-[#173127] uppercase text-xs tracking-wider flex gap-2 items-center">
+                  🎓 {grade} <span className="bg-[#008F4C] text-white text-xs px-2.5 py-0.5 rounded-full font-bold">{gradeLeads.length} ta o'quvchi</span>
+                </h4>
+              </div>
+
+              <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                {gradeLeads.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-gray-400 font-medium italic border-2 border-dashed border-gray-200 rounded-xl bg-white/50">
+                    Hozircha o'quvchilar yo'q
+                  </div>
+                ) : (
+                  gradeLeads.map(lead => (
+                    <div 
+                      key={lead.id}
+                      onClick={() => setSelectedLead(lead)}
+                      className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-[#008F4C] transition"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="font-bold text-[#173127] text-base">{lead.name}</span>
+                        <span className="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-extrabold">{lead.status}</span>
+                      </div>
+                      <div className="text-sm text-gray-600 mb-2 font-medium">{lead.phone}</div>
+                      {lead.region && <div className="inline-block bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded mb-3">{lead.region}</div>}
+
+                      <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-100">
+                        <span className="text-gray-500 font-medium">👤 {lead.operator?.name || 'Biriktirilmagan'}</span>
+                        <select
+                          onClick={(e) => e.stopPropagation()}
+                          value={lead.grade || ''}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setSelectedLead(lead);
+                            handleUpdateStatus(undefined, undefined, undefined, undefined, e.target.value);
+                          }}
+                          className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold rounded px-1.5 py-0.5 focus:outline-none"
+                        >
+                          {schoolGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Unassigned Grade Column */}
+        <div className="w-[85vw] sm:w-80 flex-shrink-0 bg-amber-50/70 border border-amber-200 rounded-xl p-3 flex flex-col max-h-full snap-center shadow-sm">
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h4 className="font-bold text-amber-900 uppercase text-xs tracking-wider flex gap-2 items-center">
+              ⚠️ Sinfga biriktirilmagan <span className="bg-amber-500 text-white text-xs px-2.5 py-0.5 rounded-full font-bold">{unassignedGradeLeads.length}</span>
+            </h4>
+          </div>
+
+          <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-1">
+            {unassignedGradeLeads.length === 0 ? (
+              <div className="p-6 text-center text-xs text-amber-600/70 font-medium italic border-2 border-dashed border-amber-200 rounded-xl bg-white/50">
+                Barcha sifatli lidlar sinfga biriktirilgan ✨
+              </div>
+            ) : (
+              unassignedGradeLeads.map(lead => (
+                <div 
+                  key={lead.id}
+                  onClick={() => setSelectedLead(lead)}
+                  className="bg-white p-4 rounded-xl shadow-sm border border-amber-200 cursor-pointer hover:shadow-md hover:border-amber-500 transition"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-bold text-[#173127] text-base">{lead.name}</span>
+                    <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-extrabold">{lead.status}</span>
+                  </div>
+                  <div className="text-sm text-gray-600 mb-2 font-medium">{lead.phone}</div>
+
+                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                    <span className="text-xs text-gray-400 font-medium">Sinfni tanlang:</span>
+                    <select
+                      onClick={(e) => e.stopPropagation()}
+                      value=""
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setSelectedLead(lead);
+                        handleUpdateStatus(undefined, undefined, undefined, undefined, e.target.value);
+                      }}
+                      className="text-xs bg-amber-100 text-amber-900 font-bold rounded px-2 py-1 focus:outline-none"
+                    >
+                      <option value="" disabled>Sinfni biriktirish 🎓</option>
+                      {schoolGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="h-full flex gap-6 relative">
@@ -591,22 +713,28 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
             <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
               <button 
                 onClick={() => setView('list')}
-                className={`p-1.5 rounded-md transition flex items-center gap-2 px-3 ${view === 'list' ? 'bg-white shadow-sm text-[#008F4C] font-bold' : 'text-gray-500 hover:text-gray-700 font-medium'}`}
+                className={`p-1.5 rounded-md transition flex items-center gap-2 px-3 text-xs sm:text-sm ${view === 'list' ? 'bg-white shadow-sm text-[#008F4C] font-bold' : 'text-gray-500 hover:text-gray-700 font-medium'}`}
               >
                 <List size={16} /> Ro'yxat
               </button>
               <button 
                 onClick={() => setView('kanban')}
-                className={`p-1.5 rounded-md transition flex items-center gap-2 px-3 ${view === 'kanban' ? 'bg-white shadow-sm text-[#008F4C] font-bold' : 'text-gray-500 hover:text-gray-700 font-medium'}`}
+                className={`p-1.5 rounded-md transition flex items-center gap-2 px-3 text-xs sm:text-sm ${view === 'kanban' ? 'bg-white shadow-sm text-[#008F4C] font-bold' : 'text-gray-500 hover:text-gray-700 font-medium'}`}
               >
                 <LayoutGrid size={16} /> Kanban
+              </button>
+              <button 
+                onClick={() => setView('grades')}
+                className={`p-1.5 rounded-md transition flex items-center gap-2 px-3 text-xs sm:text-sm ${view === 'grades' ? 'bg-[#008F4C] text-white shadow-sm font-bold' : 'text-gray-500 hover:text-gray-700 font-medium'}`}
+              >
+                <span>🎓 Guruhlar (1-8 sinf)</span>
               </button>
             </div>
           </div>
         </div>
 
         {/* View Render */}
-        {view === 'list' ? renderListView() : renderKanbanView()}
+        {view === 'list' ? renderListView() : view === 'kanban' ? renderKanbanView() : renderGradesView()}
       </div>
 
       {/* Lead Detail Modal */}
@@ -709,6 +837,18 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                   >
                       <option value="">Tanlanmagan</option>
                       {xorazmRegions.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+              </div>
+
+              <div className="col-span-2 sm:col-span-1">
+                  <p className="text-gray-400 text-xs uppercase font-bold mb-2">🎓 Sinf / Guruh</p>
+                  <select 
+                      value={selectedLead.grade || ''} 
+                      onChange={e => handleUpdateStatus(undefined, undefined, undefined, undefined, e.target.value)}
+                      className="w-full bg-emerald-50 text-emerald-900 font-bold px-4 py-2.5 rounded-xl border border-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition cursor-pointer text-[15px]"
+                  >
+                      <option value="">Sinfga biriktirilmagan</option>
+                      {schoolGrades.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
               </div>
               
