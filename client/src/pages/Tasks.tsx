@@ -93,7 +93,7 @@ const Tasks = () => {
             className="bg-[#008F4C] hover:bg-[#007041] text-white px-5 py-3 rounded-xl font-bold transition shadow-sm flex items-center gap-2 text-sm"
           >
             <Plus size={18} />
-            + Yangi vazifa yuklash
+            Yangi vazifa yuklash
           </button>
         )}
       </div>
