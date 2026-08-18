@@ -99,6 +99,20 @@ router.get('/', authenticate, async (req: any, res: any) => {
         const todayCallDuration = todayCalls.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
 
         // --- Pie Chart: Lidlar manbalari ---
+        const isFinishedStatus = (s: string) => {
+            if (!s) return false;
+            const lower = s.toLowerCase();
+            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('yakun');
+        };
+
+        const overdueLeadsList = rawOverdueLeadsList.filter(l => {
+            if (isFinishedStatus(l.status)) return false;
+            const d = new Date(l.nextCallAt);
+            d.setHours(0, 0, 0, 0);
+            return d.getTime() <= todayStart.getTime();
+        });
+        const overdueLeads = overdueLeadsList.length;
+
         const sourceGroups = await prisma.lead.groupBy({
             by: ['source'],
             where: whereClause,
@@ -131,7 +145,7 @@ router.get('/', authenticate, async (req: any, res: any) => {
             const delays = op.leadDelays.length;
             
             const now = new Date();
-            const overdue = op.assignedLeads.filter(l => l.nextCallAt && new Date(l.nextCallAt) < now && l.status !== 'Aloqa bo\'ldi').length;
+            const overdue = op.assignedLeads.filter(l => l.nextCallAt && new Date(l.nextCallAt) < now && !isFinishedStatus(l.status)).length;
             
             const totalDuration = op.callLogs.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
             

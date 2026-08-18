@@ -24,12 +24,14 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
       const saved = localStorage.getItem('nova_crm_kanban_columns');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((c: string) => c !== 'Aloqa bo\'ldi');
+        }
       }
     } catch (e) {
       console.error('Failed to load columns from localStorage', e);
     }
-    return ['Yangi', 'Kutilmoqda', 'Qayta qo\'ng\'iroq', 'Aloqa bo\'ldi'];
+    return ['Yangi', 'Kutilmoqda', 'Qayta qo\'ng\'iroq'];
   });
   const [newColumnName, setNewColumnName] = useState('');
   const [isAddingColumn, setIsAddingColumn] = useState(false);
@@ -417,7 +419,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                       lead.status === 'Yangi' ? 'bg-blue-100 text-blue-700' :
                       lead.status === 'Kutilmoqda' ? 'bg-yellow-100 text-yellow-700' :
-                      lead.status === 'Aloqa bo\'ldi' ? 'bg-green-100 text-green-700' :
+                      lead.status === 'Qayta qo\'ng\'iroq' ? 'bg-purple-100 text-purple-700' :
                       'bg-gray-100 text-gray-700'
                   }`}>
                     {lead.status}
@@ -450,7 +452,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
         
         const colLeads = filteredLeads.filter(l => l.status === col || l.status === mappedCol);
         
-        const isDefaultCol = ['Yangi', 'Kutilmoqda', 'Qayta qo\'ng\'iroq', 'Aloqa bo\'ldi'].includes(col);
+        const isDefaultCol = ['Yangi', 'Kutilmoqda', 'Qayta qo\'ng\'iroq'].includes(col);
         return (
         <div key={col} className="w-[85vw] sm:w-80 flex-shrink-0 bg-[#F1F5F9] rounded-xl p-3 flex flex-col max-h-full snap-center shadow-sm">
           <div className="flex items-center justify-between mb-3 px-1">

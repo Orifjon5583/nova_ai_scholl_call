@@ -142,7 +142,7 @@ router.put('/:id', authenticate, async (req: any, res: any) => {
         const isFinishedStatus = (s: string) => {
             if (!s) return false;
             const lower = s.toLowerCase();
-            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('aloqa') || lower.includes('yakun');
+            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('yakun');
         };
 
         if (nextCallAt !== undefined) {
@@ -220,7 +220,7 @@ router.post('/:id/call', authenticate, async (req: any, res: any) => {
         const isFinishedStatus = (s: string) => {
             if (!s) return false;
             const lower = s.toLowerCase();
-            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('aloqa') || lower.includes('yakun');
+            return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('yakun');
         };
 
         if (status) leadUpdateData.status = status;
