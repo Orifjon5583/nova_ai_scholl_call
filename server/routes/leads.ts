@@ -127,7 +127,7 @@ router.post('/import', authenticate, async (req: any, res: any) => {
 router.put('/:id', authenticate, async (req: any, res: any) => {
     try {
         const id = parseInt(req.params.id);
-        const { status, quality, assignedTo, nextCallAt, region } = req.body;
+        const { status, quality, assignedTo, nextCallAt, region, grade } = req.body;
 
         const currentLead = await prisma.lead.findUnique({ where: { id } });
         if (!currentLead) return res.status(404).json({ error: 'Lead not found' });
@@ -137,6 +137,7 @@ router.put('/:id', authenticate, async (req: any, res: any) => {
         if (quality) updateData.quality = quality;
         if (region !== undefined) updateData.region = region;
         if (assignedTo !== undefined) updateData.assignedTo = assignedTo;
+        if (grade !== undefined) updateData.grade = grade;
         
         const isFinishedStatus = (s: string) => {
             if (!s) return false;

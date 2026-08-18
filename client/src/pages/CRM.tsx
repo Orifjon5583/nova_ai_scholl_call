@@ -537,19 +537,13 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   );
 
   const renderGradesView = () => {
-    // Only show quality / sold leads or leads with assigned grades
-    const qualityOrSoldLeads = filteredLeads.filter(l => {
-      const isQuality = l.quality === 'Sifatli' || l.quality === 'quality';
-      const isSold = l.status && (l.status.toLowerCase().includes('sot') || l.status.toLowerCase().includes('shartnoma'));
-      return isQuality || isSold || l.grade;
-    });
-
-    const unassignedGradeLeads = qualityOrSoldLeads.filter(l => !l.grade);
+    const targetLeads = filteredLeads;
+    const unassignedGradeLeads = targetLeads.filter(l => !l.grade);
 
     return (
       <div className="flex gap-4 overflow-x-auto pb-4 flex-1 custom-scrollbar snap-x snap-mandatory">
         {schoolGrades.map((grade) => {
-          const gradeLeads = qualityOrSoldLeads.filter(l => l.grade === grade);
+          const gradeLeads = targetLeads.filter(l => l.grade === grade);
           return (
             <div key={grade} className="w-[85vw] sm:w-80 flex-shrink-0 bg-[#F1F5F9] rounded-xl p-3 flex flex-col max-h-full snap-center shadow-sm border border-gray-200">
               <div className="flex items-center justify-between mb-3 px-1">
