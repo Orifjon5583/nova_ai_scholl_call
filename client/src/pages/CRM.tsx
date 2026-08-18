@@ -310,7 +310,10 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
     }
   };
 
-  const handleUpdateStatus = async (status?: string, quality?: string, nextCallAt?: string, region?: string, grade?: string) => {
+  const handleUpdateStatus = async (status?: string, quality?: string, nextCallAt?: string, region?: string, grade?: string, targetLeadId?: number) => {
+    const leadId = targetLeadId || selectedLead?.id;
+    if (!leadId) return;
+
     try {
       const payload: any = {};
       if (status !== undefined) payload.status = status;
@@ -319,7 +322,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
       if (region !== undefined) payload.region = region;
       if (grade !== undefined) payload.grade = grade;
       
-      await api.put(`/leads/${selectedLead.id}`, payload);
+      await api.put(`/leads/${leadId}`, payload);
       
       let url = '/leads?sortBy=' + sortBy;
       if (selectedRegions.length > 0) {
@@ -327,8 +330,10 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
       }
       const updated = await api.get(url);
       setLeads(updated.data);
-      const newSelected = updated.data.find((l: any) => l.id === selectedLead.id);
-      if(newSelected) setSelectedLead(newSelected);
+      if (selectedLead && selectedLead.id === leadId) {
+        const newSelected = updated.data.find((l: any) => l.id === leadId);
+        if (newSelected) setSelectedLead(newSelected);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -579,8 +584,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                           value={lead.grade || ''}
                           onChange={(e) => {
                             e.stopPropagation();
-                            setSelectedLead(lead);
-                            handleUpdateStatus(undefined, undefined, undefined, undefined, e.target.value);
+                            handleUpdateStatus(undefined, undefined, undefined, undefined, e.target.value, lead.id);
                           }}
                           className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold rounded px-1.5 py-0.5 focus:outline-none"
                         >
@@ -628,8 +632,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                       value=""
                       onChange={(e) => {
                         e.stopPropagation();
-                        setSelectedLead(lead);
-                        handleUpdateStatus(undefined, undefined, undefined, undefined, e.target.value);
+                        handleUpdateStatus(undefined, undefined, undefined, undefined, e.target.value, lead.id);
                       }}
                       className="text-xs bg-amber-100 text-amber-900 font-bold rounded px-2 py-1 focus:outline-none"
                     >
