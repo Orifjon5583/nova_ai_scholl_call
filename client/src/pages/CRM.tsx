@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, Download, Filter, List, LayoutGrid, ChevronLeft, Phone, Clock, MessageSquare, Save, MoreHorizontal } from 'lucide-react';
+import { Search, Plus, Download, Filter, List, LayoutGrid, ChevronLeft, Phone, Clock, MessageSquare, Save, MoreHorizontal, FileSpreadsheet, AlertTriangle, Check, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../api';
 
@@ -70,6 +70,32 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [parsedLeads, setParsedLeads] = useState<any[]>([]);
   const [importLoading, setImportLoading] = useState(false);
+
+  // Google Sheets Import Modal State
+  const [showGoogleSheetsModal, setShowGoogleSheetsModal] = useState(false);
+  const [googleSheetsUrl, setGoogleSheetsUrl] = useState('');
+  const [googleSheetsLoading, setGoogleSheetsLoading] = useState(false);
+
+  const handleGoogleSheetsImport = async () => {
+    if (!googleSheetsUrl.trim()) {
+      alert("Iltimos, Google Sheets havolasini kiriting!");
+      return;
+    }
+    setGoogleSheetsLoading(true);
+    try {
+      const res = await api.post('/leads/import-google-sheets', { sheetUrl: googleSheetsUrl.trim() });
+      setShowGoogleSheetsModal(false);
+      setGoogleSheetsUrl('');
+      fetchLeads();
+      const dupMsg = res.data.duplicateCount > 0 ? `\n(Shundan ${res.data.duplicateCount} tasi takroriy deb belgilandi ⚠️)` : '';
+      alert(`Muvaffaqiyatli ${res.data.count} ta lid Google Sheets'dan import qilindi!${dupMsg}`);
+    } catch (err: any) {
+      console.error('Google Sheets import failed', err);
+      alert(err.response?.data?.error || 'Google Sheets havolasidan o\'qishda xatolik yuz berdi');
+    } finally {
+      setGoogleSheetsLoading(false);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -312,7 +338,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
     }
   };
 
-  const handleUpdateStatus = async (status?: string, quality?: string, nextCallAt?: string, region?: string, grade?: string, targetLeadId?: number) => {
+  const handleUpdateStatus = async (status?: string, quality?: string, nextCallAt?: string, region?: string, grade?: string, targetLeadId?: number, isDuplicate?: boolean) => {
     const leadId = targetLeadId || selectedLead?.id;
     if (!leadId) return;
 
@@ -323,6 +349,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
       if (nextCallAt !== undefined) payload.nextCallAt = nextCallAt;
       if (region !== undefined) payload.region = region;
       if (grade !== undefined) payload.grade = grade;
+      if (isDuplicate !== undefined) payload.isDuplicate = isDuplicate;
       
       await api.put(`/leads/${leadId}`, payload);
       
@@ -478,8 +505,33 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
               <div 
                 key={lead.id} 
                 onClick={() => setSelectedLead(lead)}
-                className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-[#008F4C] transition"
+                className={`p-4 rounded-xl shadow-sm border cursor-pointer hover:shadow-md transition relative ${
+                  lead.isDuplicate 
+                    ? 'bg-red-50/90 border-2 border-red-500 hover:border-red-600 shadow-red-100' 
+                    : 'bg-white border-gray-100 hover:border-[#008F4C]'
+                }`}
               >
+                {lead.isDuplicate && (
+                  <div className="bg-red-600 text-white text-[10px] font-extrabold px-2 py-1 rounded-md mb-2 flex justify-between items-center">
+                    <span className="flex items-center gap-1"><AlertTriangle size={12} /> TAKRORIY LID</span>
+                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      <button 
+                        onClick={() => handleUpdateStatus(undefined, 'Sifatsiz', undefined, undefined, undefined, lead.id, false)}
+                        title="Sifatsiz deb belgilash"
+                        className="bg-black/30 hover:bg-black/50 px-1.5 py-0.5 rounded text-[9px] font-bold"
+                      >
+                        ❌ Sifatsiz
+                      </button>
+                      <button 
+                        onClick={() => handleUpdateStatus(undefined, 'Sifatli', undefined, undefined, undefined, lead.id, false)}
+                        title="Qiziqishi yuqori deb belgilash"
+                        className="bg-emerald-800 hover:bg-emerald-900 px-1.5 py-0.5 rounded text-[9px] font-bold"
+                      >
+                        🔥 Qiziqishi yuqori
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between items-start mb-2">
                   <span className="font-bold text-[#173127] text-base">{lead.name}</span>
                   {lead.delayCount > 0 && <span className="text-[10px] bg-red-50 border border-red-100 text-red-600 px-1.5 py-0.5 rounded font-bold">{lead.delayCount} marta surilgan</span>}
@@ -661,7 +713,13 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 onClick={() => setShowImportModal(true)}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-sm"
             >
-              <Download size={18} /> Excel / CSV import
+              <Download size={18} /> Excel import
+            </button>
+            <button 
+                onClick={() => setShowGoogleSheetsModal(true)}
+                className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-sm"
+            >
+              <FileSpreadsheet size={18} /> Google Sheets import
             </button>
             <div className="relative">
                 <button 
@@ -741,6 +799,29 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
         <div className="fixed inset-0 z-[100] bg-[#173127]/60 backdrop-blur-sm flex justify-center items-start overflow-y-auto p-4 sm:p-10 custom-scrollbar">
           <div className="bg-white w-full max-w-[900px] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] relative mb-10 overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
             
+          {selectedLead.isDuplicate && (
+            <div className="bg-gradient-to-r from-red-600 to-rose-700 text-white px-8 py-3.5 flex flex-wrap items-center justify-between gap-3 font-bold text-sm shadow-inner">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={20} className="animate-bounce shrink-0" />
+                <span>⚠️ TAKRORIY LID! (Ushbu telefon raqami allaqachon tizimda bor)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => handleUpdateStatus(undefined, 'Sifatsiz', undefined, undefined, undefined, selectedLead.id, false)}
+                  className="bg-white text-red-700 hover:bg-red-50 px-3 py-1 rounded-lg text-xs font-black transition shadow"
+                >
+                  ❌ Sifatsiz lidga o'tkazish
+                </button>
+                <button 
+                  onClick={() => handleUpdateStatus(undefined, 'Sifatli', undefined, undefined, undefined, selectedLead.id, false)}
+                  className="bg-emerald-800 hover:bg-emerald-900 text-white px-3 py-1 rounded-lg text-xs font-black transition shadow"
+                >
+                  🔥 Qiziqishi yuqori (Aloqada bo'lish)
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div className="px-8 py-6 flex justify-between items-start bg-white relative z-10 border-b border-gray-100">
             <div className="flex items-center gap-5">
@@ -1192,6 +1273,64 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                     className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg text-sm shadow-md transition flex items-center gap-2"
                   >
                     {importLoading ? 'Saqlanmoqda...' : `📥 ${parsedLeads.length} ta lidni saqlash`}
+                  </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Google Sheets Import Modal */}
+      {showGoogleSheetsModal && (
+        <div className="fixed inset-0 z-[120] bg-black/60 backdrop-blur-sm flex justify-center items-center p-4">
+            <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl p-6 relative border border-gray-100 animate-in fade-in zoom-in duration-200">
+                <button 
+                  onClick={() => setShowGoogleSheetsModal(false)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 font-bold p-1 rounded-full hover:bg-gray-100"
+                >
+                  <X size={20} />
+                </button>
+
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-emerald-100 text-emerald-800 rounded-xl flex items-center justify-center font-bold">
+                    <FileSpreadsheet size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-extrabold text-[#173127]">Google Sheets havola orqali import</h3>
+                    <p className="text-xs text-gray-500 font-medium">Google Sheets jadvali havolasini kiriting</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 my-6">
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 uppercase block mb-1">Google Sheets URL Havolasi</label>
+                    <input 
+                      type="url" 
+                      value={googleSheetsUrl}
+                      onChange={e => setGoogleSheetsUrl(e.target.value)}
+                      placeholder="https://docs.google.com/spreadsheets/d/..."
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 text-xs text-emerald-900 leading-relaxed font-medium">
+                    <p className="font-bold mb-1 flex items-center gap-1"><Check size={14} /> Eslatma:</p>
+                    Google Sheets jadvalining "Share" sozlamalaridan <strong>"Anyone with the link can view" (Havolaga ega bo'lgan har kim ko'ra olsin)</strong> qilib sozlang. Tizim ustunlar (`Ism`, `Telefon`, `Manba`, `Hudud`, `Sinf`) ni avtomatik ajratib oladi va takroriy tushgan lidlarni aniqlab qizil bilan ajratadi.
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+                  <button 
+                    onClick={() => setShowGoogleSheetsModal(false)}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg text-sm transition"
+                  >
+                    Bekor qilish
+                  </button>
+                  <button 
+                    onClick={handleGoogleSheetsImport}
+                    disabled={!googleSheetsUrl.trim() || googleSheetsLoading}
+                    className="px-6 py-2 bg-emerald-700 hover:bg-emerald-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-lg text-sm shadow-md transition flex items-center gap-2"
+                  >
+                    {googleSheetsLoading ? 'O\'qilmoqda...' : '📥 Google Sheets\'dan o\'qish va saqlash'}
                   </button>
                 </div>
             </div>

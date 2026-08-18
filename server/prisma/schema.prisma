@@ -35,6 +35,7 @@ model Lead {
   source             String?
   region             String?
   grade              String?   // '1-sinf', '2-sinf', ..., '8-sinf'
+  isDuplicate        Boolean   @default(false)
   quality            String    @default("unknown")
   status             String    @default("waiting")
   assignedTo         Int?

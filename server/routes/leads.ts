@@ -50,10 +50,22 @@ router.get('/', authenticate, async (req: any, res: any) => {
     }
 });
 
-// POST /api/leads - Yangi lid qo'shish
+// Helper to check if a phone number already exists
+const checkDuplicatePhone = async (phone: string) => {
+    const digits = (phone || '').replace(/\D/g, '');
+    if (!digits || digits.length < 7) return false;
+    const last7 = digits.slice(-7);
+    const existing = await prisma.lead.findFirst({
+        where: { phone: { contains: last7 } }
+    });
+    return !!existing;
+};
+
+// POST /api/leads - Yangi lid qo'shish (Takroriylikni tekshiradi)
 router.post('/', authenticate, async (req: any, res: any) => {
     try {
         const { name, phone, source, region, grade } = req.body;
+        const isDup = await checkDuplicatePhone(phone);
         
         const lead = await prisma.lead.create({
             data: {
@@ -62,13 +74,14 @@ router.post('/', authenticate, async (req: any, res: any) => {
                 source,
                 region,
                 grade: grade || null,
+                isDuplicate: isDup,
                 assignedTo: req.user.role === 'admin' ? null : req.user.id
             }
         });
 
         // Add activity
         await prisma.activityLog.create({
-            data: { userId: req.user.id, action: 'Lid qo\'shdi', details: `Lid ID: ${lead.id}` }
+            data: { userId: req.user.id, action: isDup ? 'Takroriy lid qo\'shdi' : 'Lid qo\'shdi', details: `Lid ID: ${lead.id}` }
         });
 
         res.json(lead);
@@ -87,6 +100,8 @@ router.post('/import', authenticate, async (req: any, res: any) => {
         }
 
         const createdLeads = [];
+        let duplicateCount = 0;
+
         for (const item of leads) {
             let cleanPhone = (item.phone || item.phone_number || '').toString().trim();
             if (cleanPhone.startsWith('p:')) {
@@ -102,12 +117,17 @@ router.post('/import', authenticate, async (req: any, res: any) => {
                 parsedDate = new Date();
             }
 
+            const isDup = await checkDuplicatePhone(cleanPhone);
+            if (isDup) duplicateCount++;
+
             const lead = await prisma.lead.create({
                 data: {
                     name: cleanName,
                     phone: cleanPhone,
                     source: item.source || 'Excel Import',
                     region: item.region || null,
+                    grade: item.grade || null,
+                    isDuplicate: isDup,
                     createdAt: parsedDate,
                     assignedTo: req.user.role === 'admin' ? null : req.user.id,
                     status: 'Yangi'
@@ -116,10 +136,109 @@ router.post('/import', authenticate, async (req: any, res: any) => {
             createdLeads.push(lead);
         }
 
-        res.json({ message: 'Success', count: createdLeads.length });
+        res.json({ message: 'Success', count: createdLeads.length, duplicateCount });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Importing leads error' });
+    }
+});
+
+// POST /api/leads/import-google-sheets - Google Sheets havolasi orqali import qilish
+router.post('/import-google-sheets', authenticate, async (req: any, res: any) => {
+    try {
+        const { sheetUrl } = req.body;
+        if (!sheetUrl) return res.status(400).json({ error: 'Google Sheets havolasi ko\'rsatilmadi' });
+
+        // Convert Google Sheets URL to CSV format URL
+        let csvUrl = sheetUrl;
+        if (sheetUrl.includes('/spreadsheets/d/')) {
+            const match = sheetUrl.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+            if (match && match[1]) {
+                const sheetId = match[1];
+                csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+            }
+        } else if (sheetUrl.includes('/pubhtml')) {
+            csvUrl = sheetUrl.replace('/pubhtml', '/pub?output=csv');
+        }
+
+        const response = await fetch(csvUrl);
+        if (!response.ok) {
+            return res.status(400).json({ error: 'Google Sheets faylini o\'qib bo\'lmadi. Iltimos, havola kirish uchun ochiq ("Anyone with the link can view") ekanligini tekshiring.' });
+        }
+
+        const csvText = await response.text();
+        const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
+
+        if (lines.length < 2) {
+            return res.status(400).json({ error: 'Google Sheets jadvalida ma\'lumotlar topilmadi' });
+        }
+
+        // Parse CSV Header
+        const parseCSVLine = (line: string) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"' || char === "'") {
+                    inQuotes = !inQuotes;
+                } else if ((char === ',' || char === '\t') && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        };
+
+        const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase());
+        
+        // Find indexes
+        const nameIdx = headers.findIndex(h => h.includes('ism') || h.includes('name') || h.includes('fio'));
+        const phoneIdx = headers.findIndex(h => h.includes('tel') || h.includes('phone') || h.includes('nomer'));
+        const sourceIdx = headers.findIndex(h => h.includes('manba') || h.includes('source'));
+        const regionIdx = headers.findIndex(h => h.includes('hudud') || h.includes('viloyat') || h.includes('region'));
+        const gradeIdx = headers.findIndex(h => h.includes('sinf') || h.includes('guruh') || h.includes('grade'));
+
+        const createdLeads = [];
+        let duplicateCount = 0;
+
+        for (let i = 1; i < lines.length; i++) {
+            const cols = parseCSVLine(lines[i]);
+            if (cols.length === 0) continue;
+
+            const name = nameIdx !== -1 ? cols[nameIdx] : cols[0] || 'Noma\'lum';
+            const phone = phoneIdx !== -1 ? cols[phoneIdx] : cols[1] || '';
+            if (!phone) continue; // Skip lines with no phone number
+
+            const source = sourceIdx !== -1 ? cols[sourceIdx] : 'Google Sheets';
+            const region = regionIdx !== -1 ? cols[regionIdx] : null;
+            const grade = gradeIdx !== -1 ? cols[gradeIdx] : null;
+
+            const isDup = await checkDuplicatePhone(phone);
+            if (isDup) duplicateCount++;
+
+            const lead = await prisma.lead.create({
+                data: {
+                    name,
+                    phone,
+                    source,
+                    region,
+                    grade,
+                    isDuplicate: isDup,
+                    assignedTo: req.user.role === 'admin' ? null : req.user.id,
+                    status: 'Yangi'
+                }
+            });
+            createdLeads.push(lead);
+        }
+
+        res.json({ message: 'Success', count: createdLeads.length, duplicateCount });
+    } catch (error) {
+        console.error('Google Sheets Import error', error);
+        res.status(500).json({ error: 'Google Sheets faylidan import qilishda xatolik yuz berdi' });
     }
 });
 
@@ -127,7 +246,7 @@ router.post('/import', authenticate, async (req: any, res: any) => {
 router.put('/:id', authenticate, async (req: any, res: any) => {
     try {
         const id = parseInt(req.params.id);
-        const { status, quality, assignedTo, nextCallAt, region, grade } = req.body;
+        const { status, quality, assignedTo, nextCallAt, region, grade, isDuplicate } = req.body;
 
         const currentLead = await prisma.lead.findUnique({ where: { id } });
         if (!currentLead) return res.status(404).json({ error: 'Lead not found' });
@@ -138,6 +257,7 @@ router.put('/:id', authenticate, async (req: any, res: any) => {
         if (region !== undefined) updateData.region = region;
         if (assignedTo !== undefined) updateData.assignedTo = assignedTo;
         if (grade !== undefined) updateData.grade = grade;
+        if (isDuplicate !== undefined) updateData.isDuplicate = isDuplicate;
         
         const isFinishedStatus = (s: string) => {
             if (!s) return false;
