@@ -70,7 +70,7 @@ const DashboardLayout = () => {
               type: 'lead',
               leadId: lead.id,
               title: `Qo'ng'iroq deadline'i: ${lead.name}`,
-              time: new Date(lead.nextCallAt).toLocaleString('uz-UZ', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }),
+              time: new Date(lead.nextCallAt).toLocaleDateString('uz-UZ'),
               message: lead.comments && lead.comments.length > 0 ? lead.comments[0].comment : '',
               isRead: readIds.includes(id)
             });

@@ -396,7 +396,14 @@ router.post('/:id/call', authenticate, async (req: any, res: any) => {
         if (grade) leadUpdateData.grade = grade;
 
         if (nextCallAt !== undefined) {
-            const newDate = nextCallAt ? new Date(nextCallAt) : null;
+            let newDate: Date | null = null;
+            if (nextCallAt) {
+                const parsed = new Date(nextCallAt);
+                if (!isNaN(parsed.getTime())) {
+                    // Normalize deadline to 06:00:00 AM on the specified date
+                    newDate = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), 6, 0, 0, 0);
+                }
+            }
             leadUpdateData.nextCallAt = newDate;
             
             // Check if deadline was pushed/changed

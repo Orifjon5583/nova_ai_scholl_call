@@ -977,8 +977,8 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                      <div className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 focus-within:ring-2 focus-within:ring-[#F4C400] shadow-sm">
                         <Clock size={20} className="text-[#F4C400]" />
                         <input 
-                            type="datetime-local" 
-                            value={selectedLead.nextCallAt ? new Date(new Date(selectedLead.nextCallAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
+                            type="date" 
+                            value={selectedLead.nextCallAt ? new Date(new Date(selectedLead.nextCallAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : ''}
                             onChange={e => handleUpdateStatus(undefined, undefined, e.target.value)}
                             className="w-full text-[15px] font-bold text-gray-700 focus:outline-none"
                         />
@@ -1217,8 +1217,8 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                       )}
                     </div>
                     <input 
-                        type="datetime-local" 
-                        value={postCallForm.nextCallAt}
+                        type="date" 
+                        value={postCallForm.nextCallAt ? postCallForm.nextCallAt.slice(0, 10) : ''}
                         onChange={e => setPostCallForm({...postCallForm, nextCallAt: e.target.value})}
                         className="w-full border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#F4C400] font-bold text-sm"
                     />

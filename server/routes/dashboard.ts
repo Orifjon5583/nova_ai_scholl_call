@@ -65,11 +65,13 @@ router.get('/', authenticate, async (req: any, res: any) => {
             return lower.includes('sot') || lower.includes('shartnoma') || lower.includes('rad') || lower.includes('yakun');
         };
 
+        const now = new Date();
         const overdueLeadsList = rawOverdueLeadsList.filter(l => {
             if (isFinishedStatus(l.status)) return false;
-            const d = new Date(l.nextCallAt);
-            d.setHours(0, 0, 0, 0);
-            return d.getTime() <= todayStart.getTime();
+            const deadline = new Date(l.nextCallAt);
+            // Active starting at 06:00:00 AM on the deadline date
+            const activeAt = new Date(deadline.getFullYear(), deadline.getMonth(), deadline.getDate(), 6, 0, 0, 0);
+            return now.getTime() >= activeAt.getTime();
         });
         const overdueLeads = overdueLeadsList.length;
 
