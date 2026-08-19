@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, MessageSquare, Shield, Bell, Send, CheckCircle2, Clock, Plus, Trash2, Key, UserCheck, AlertCircle } from 'lucide-react';
+import { Megaphone, MessageSquare, Shield, Bell, Send, CheckCircle2, Clock, Plus, Trash2, Key, UserCheck, AlertCircle, Download } from 'lucide-react';
 import api from '../api';
 
 const Settings = () => {
-  const [activeTab, setActiveTab] = useState<'announcements' | 'support' | 'profile'>('announcements');
+  const [activeTab, setActiveTab] = useState<'announcements' | 'support' | 'profile' | 'telegram'>('announcements');
   const [userRole, setUserRole] = useState<string>('operator');
   const [userId, setUserId] = useState<number | null>(null);
 
@@ -30,11 +30,73 @@ const Settings = () => {
   const [newPassword, setNewPassword] = useState('');
   const [pwdMsg, setPwdMsg] = useState<{ text: string; error: boolean } | null>(null);
 
+  // Telegram Bot Settings state
+  const [telegramToken, setTelegramToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramSaveLoading, setTelegramSaveLoading] = useState(false);
+  const [telegramTestLoading, setTelegramTestLoading] = useState(false);
+  const [telegramReportLoading, setTelegramReportLoading] = useState(false);
+  const [telegramMsg, setTelegramMsg] = useState<{ text: string; error: boolean } | null>(null);
+
   useEffect(() => {
     fetchMe();
     fetchAnnouncements();
     fetchTickets();
+    fetchTelegramSettings();
   }, []);
+
+  const fetchTelegramSettings = async () => {
+    try {
+      const res = await api.get('/telegram/settings');
+      if (res.data) {
+        setTelegramToken(res.data.token || '');
+        setTelegramChatId(res.data.chatId || '');
+      }
+    } catch (err) {
+      console.error('Fetch telegram settings error', err);
+    }
+  };
+
+  const handleSaveTelegramSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTelegramSaveLoading(true);
+    setTelegramMsg(null);
+    try {
+      await api.post('/telegram/settings', { token: telegramToken, chatId: telegramChatId });
+      setTelegramMsg({ text: "Telegram bot sozlamalari muvaffaqiyatli saqlandi!", error: false });
+      fetchTelegramSettings();
+    } catch (err: any) {
+      setTelegramMsg({ text: err.response?.data?.error || "Sozlamalarni saqlashda xatolik", error: true });
+    } finally {
+      setTelegramSaveLoading(false);
+    }
+  };
+
+  const handleSendTelegramTest = async () => {
+    setTelegramTestLoading(true);
+    setTelegramMsg(null);
+    try {
+      const res = await api.post('/telegram/send-test');
+      setTelegramMsg({ text: res.data?.message || "Test xabari yuborildi!", error: false });
+    } catch (err: any) {
+      setTelegramMsg({ text: err.response?.data?.error || "Test xabari yuborishda xatolik", error: true });
+    } finally {
+      setTelegramTestLoading(false);
+    }
+  };
+
+  const handleSendTelegramReportNow = async () => {
+    setTelegramReportLoading(true);
+    setTelegramMsg(null);
+    try {
+      const res = await api.post('/telegram/send-report');
+      setTelegramMsg({ text: res.data?.message || "Kunlik hisobot yuborildi!", error: false });
+    } catch (err: any) {
+      setTelegramMsg({ text: err.response?.data?.error || "Hisobot yuborishda xatolik", error: true });
+    } finally {
+      setTelegramReportLoading(false);
+    }
+  };
 
   const fetchMe = async () => {
     try {
@@ -202,6 +264,20 @@ const Settings = () => {
           <Shield size={18} />
           <span>⚙️ Profil Sozlamalari</span>
         </button>
+
+        {userRole === 'admin' && (
+          <button
+            onClick={() => setActiveTab('telegram')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all text-sm ${
+              activeTab === 'telegram'
+                ? 'bg-[#173127] text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Send size={18} />
+            <span>🤖 Telegram Bot & Hisobotlar</span>
+          </button>
+        )}
       </div>
 
       {/* TAB 1: ANNOUNCEMENTS */}
@@ -415,6 +491,119 @@ const Settings = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 4: TELEGRAM BOT & DAILY REPORTS */}
+      {activeTab === 'telegram' && (
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 max-w-2xl space-y-6">
+          <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
+            <div className="p-3 bg-sky-50 text-sky-600 rounded-2xl">
+              <Send size={28} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-[#173127]">Telegram Bot Sozlamalari & Avto-Hisobot</h2>
+              <p className="text-xs text-gray-500">Har kuni soat 22:00 da Telegram orqali sifatli, sifatsiz va umumiy lidlar hisobotini yuborish</p>
+            </div>
+          </div>
+
+          {telegramMsg && (
+            <div className={`p-4 rounded-xl text-sm font-medium flex items-center gap-2 ${telegramMsg.error ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'}`}>
+              <AlertCircle size={18} />
+              <span>{telegramMsg.text}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSaveTelegramSettings} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                Telegram Bot Token <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={telegramToken}
+                onChange={(e) => setTelegramToken(e.target.value)}
+                placeholder="Masalan: 8123456789:AAFgH..."
+                className="w-full p-3 border border-gray-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-[#173127] focus:outline-none"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">@BotFather orqali yaratilgan bot tokenini kiriting</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+                Telegram Chat ID / Guruh ID <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={telegramChatId}
+                onChange={(e) => setTelegramChatId(e.target.value)}
+                placeholder="Masalan: -100123456789 yoki 123456789"
+                className="w-full p-3 border border-gray-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-[#173127] focus:outline-none"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">Hisobot yuborilishi kerak bo'lgan Admin yoki Guruh Chat ID-si</p>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={telegramSaveLoading}
+                className="flex-1 py-3 bg-[#173127] text-white font-bold text-sm rounded-xl hover:bg-[#12271f] transition-all shadow-md"
+              >
+                {telegramSaveLoading ? 'Saqlanmoqda...' : '💾 Sozlamalarni Saqlash'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSendTelegramTest}
+                disabled={telegramTestLoading}
+                className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm rounded-xl transition-all border border-gray-200"
+              >
+                {telegramTestLoading ? 'Yuborilmoqda...' : '🔔 Test Xabari'}
+              </button>
+            </div>
+          </form>
+
+          {/* Manual Dispatch & Download Actions */}
+          <div className="pt-6 border-t border-gray-100 space-y-4">
+            <h3 className="text-sm font-bold text-[#173127] uppercase tracking-wider">⚡ Qo'lda Yuborish & Yuklab Olish</h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={handleSendTelegramReportNow}
+                disabled={telegramReportLoading}
+                className="p-4 bg-sky-50 border border-sky-200 hover:bg-sky-100 rounded-xl text-left transition text-sky-900 font-bold text-sm flex items-center justify-between"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Send size={16} className="text-sky-600" />
+                    <span>Hisobotni Telegramga Yuborish</span>
+                  </div>
+                  <p className="text-[11px] text-sky-700 font-normal">Xabar darhol bot orqali jo'natiladi</p>
+                </div>
+                <span className="text-xs bg-sky-600 text-white px-2.5 py-1 rounded-lg">Yuborish</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => window.open('http://localhost:3000/api/telegram/download-report', '_blank')}
+                className="p-4 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-xl text-left transition text-emerald-900 font-bold text-sm flex items-center justify-between"
+              >
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Download size={16} className="text-emerald-600" />
+                    <span>Hisobotni Yuklab Olish</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 font-normal">Matnli (.txt) fayl sifatida saqlash</p>
+                </div>
+                <span className="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded-lg">Yuklash</span>
+              </button>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 leading-relaxed font-medium">
+              ⏰ <strong>Avto-Hisobot Qoidasi:</strong> Tizim har kuni kechqurun soat <strong>22:00 da</strong> avtomatik tarzda barcha sifatli lidlar, sifatsiz lidlar, 1-8 sinf taqsimoti va operatorlar faoliyati hisobotini tuzib, Telegram bot orqali ushbu Chat ID ga yuboradi.
+            </div>
+          </div>
         </div>
       )}
 

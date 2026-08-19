@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Download, PieChart, Users, PhoneCall, Award, FileSpreadsheet } from 'lucide-react';
+import { BarChart3, Download, PieChart, Users, PhoneCall, Award, FileSpreadsheet, Send, FileText } from 'lucide-react';
 import api from '../api';
 
 const Reports = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [telegramLoading, setTelegramLoading] = useState(false);
 
   const userStr = localStorage.getItem('user');
   const user = userStr ? JSON.parse(userStr) : {};
@@ -36,7 +37,6 @@ const Reports = () => {
       return;
     }
 
-    // Prepare CSV header and rows
     const headers = ["ID", "Ism", "Telefon", "Manba", "Viloyat/Tuman", "Status", "Sifat", "Operator", "Yaratilgan sana"];
     const rows = data.leadsExport.map((l: any) => [
       l.id,
@@ -49,6 +49,32 @@ const Reports = () => {
       `"${l.operator || ''}"`,
       `"${new Date(l.createdAt).toLocaleDateString('uz-UZ')}"`
     ]);
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `nova_call_leads_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleSendTelegramReport = async () => {
+    setTelegramLoading(true);
+    try {
+      const res = await api.post('/telegram/send-report');
+      alert(res.data?.message || "Kunlik hisobot Telegram botga yuborildi!");
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Hisobotni yuborishda xatolik. Telegram Bot Token va Chat ID sozlang!");
+    } finally {
+      setTelegramLoading(false);
+    }
+  };
+
+  const handleDownloadTextReport = () => {
+    window.open('http://localhost:3000/api/telegram/download-report', '_blank');
+  };
 
     const csvContent = "\uFEFF" + [headers.join(','), ...rows.map((r: any) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -69,13 +95,34 @@ const Reports = () => {
           <h2 className="text-2xl font-bold text-[#173127]">Hisobotlar va Tahlil</h2>
           <p className="text-gray-500 text-sm mt-1">Lidlar statistikasi, operatorlar samaradorligi va ma'lumotlarni eksport qilish</p>
         </div>
-        <button
-          onClick={handleExportCSV}
-          className="bg-[#008F4C] hover:bg-[#007041] text-white px-6 py-3 rounded-xl font-bold transition shadow-sm flex items-center gap-2 text-sm"
-        >
-          <FileSpreadsheet size={18} />
-          Excel (CSV) Yuklab Olish
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleDownloadTextReport}
+            title="Kunlik hisobot faylini yuklab olish"
+            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold transition flex items-center gap-2 text-xs shadow-sm border border-gray-200"
+          >
+            <FileText size={16} />
+            <span>Hisobot Fayli (.txt)</span>
+          </button>
+          
+          <button
+            onClick={handleSendTelegramReport}
+            disabled={telegramLoading}
+            title="Telegram Botga hisobot yuborish"
+            className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2.5 rounded-xl font-bold transition flex items-center gap-2 text-xs shadow-sm"
+          >
+            <Send size={16} />
+            <span>{telegramLoading ? "Yuborilmoqda..." : "Telegram Botga Yuborish"}</span>
+          </button>
+
+          <button
+            onClick={handleExportCSV}
+            className="bg-[#008F4C] hover:bg-[#007041] text-white px-5 py-2.5 rounded-xl font-bold transition shadow-sm flex items-center gap-2 text-xs"
+          >
+            <FileSpreadsheet size={16} />
+            <span>Excel (CSV) Yuklab Olish</span>
+          </button>
+        </div>
       </div>
 
       {loading ? (

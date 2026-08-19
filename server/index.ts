@@ -75,6 +75,8 @@ import tasksRouter from './routes/tasks';
 import operatorsRouter from './routes/operators';
 import reportsRouter from './routes/reports';
 import announcementsRouter from './routes/announcements';
+import telegramRouter from './routes/telegram';
+import { initTelegramScheduler } from './services/telegramBot';
 
 app.use('/api/leads', leadsRouter);
 app.use('/api/dashboard', dashboardRouter);
@@ -83,6 +85,7 @@ app.use('/api/tasks', tasksRouter);
 app.use('/api/operators', operatorsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/announcements', announcementsRouter);
+app.use('/api/telegram', telegramRouter);
 
 const ensureAdminExists = async () => {
     try {
@@ -107,5 +110,6 @@ const ensureAdminExists = async () => {
 
 app.listen(PORT, async () => {
     await ensureAdminExists();
+    initTelegramScheduler();
     console.log(`Server running on http://localhost:${PORT}`);
 });
