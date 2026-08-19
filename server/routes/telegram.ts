@@ -25,13 +25,9 @@ router.get('/settings', authenticate, async (req: any, res: any) => {
     }
 });
 
-// POST /api/telegram/settings - Save Telegram Bot settings (Admin only)
+// POST /api/telegram/settings - Save Telegram Bot settings
 router.post('/settings', authenticate, async (req: any, res: any) => {
     try {
-        if (req.user.role !== 'admin') {
-            return res.status(403).json({ error: 'Faqat Admin Telegram sozlamalarini o\'zgartirishi mumkin' });
-        }
-
         const { token, chatIds } = req.body;
 
         if (token && typeof token === 'string' && !token.includes('••••')) {

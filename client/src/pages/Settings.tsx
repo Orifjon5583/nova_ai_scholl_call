@@ -289,19 +289,17 @@ const Settings = () => {
           <span>⚙️ Profil Sozlamalari</span>
         </button>
 
-        {userRole === 'admin' && (
-          <button
-            onClick={() => setActiveTab('telegram')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all text-sm ${
-              activeTab === 'telegram'
-                ? 'bg-[#173127] text-white shadow-md'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Send size={18} />
-            <span>🤖 Telegram Bot & Hisobotlar</span>
-          </button>
-        )}
+        <button
+          onClick={() => setActiveTab('telegram')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all text-sm ${
+            activeTab === 'telegram'
+              ? 'bg-[#173127] text-white shadow-md'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <Send size={18} />
+          <span>🤖 Telegram Bot & Hisobotlar</span>
+        </button>
       </div>
 
       {/* TAB 1: ANNOUNCEMENTS */}
