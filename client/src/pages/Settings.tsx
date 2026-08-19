@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Megaphone, MessageSquare, Shield, Bell, Send, CheckCircle2, Clock, Plus, Trash2, Key, UserCheck, AlertCircle, Download } from 'lucide-react';
+import { Megaphone, MessageSquare, Shield, Bell, Send, CheckCircle2, Clock, Plus, Trash2, Key, UserCheck, AlertCircle, Download, Search, Save, Zap } from 'lucide-react';
 import api from '../api';
 
 const Settings = () => {
@@ -565,35 +565,43 @@ const Settings = () => {
                   disabled={telegramDetectLoading}
                   className="bg-sky-600 hover:bg-sky-700 disabled:bg-gray-300 text-white font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
                 >
-                  {telegramDetectLoading ? 'Izlanmoqda...' : '🔍 Chat ID Avto-Topish'}
+                  <Search size={14} />
+                  <span>{telegramDetectLoading ? 'Izlanmoqda...' : 'Chat ID Avto-Topish'}</span>
                 </button>
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">Chat ID-ni qo'lda kiritishingiz yoki botga Telegram'da bitta <strong>/start</strong> yuborib <strong>"🔍 Chat ID Avto-Topish"</strong> tugmasini bosishingiz mumkin!</p>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Chat ID-ni qo'lda kiritishingiz yoki botga Telegram'da bitta <strong>/start</strong> yuborib <strong>"Chat ID Avto-Topish"</strong> tugmasini bosishingiz mumkin!
+              </p>
             </div>
 
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"
                 disabled={telegramSaveLoading}
-                className="flex-1 py-3 bg-[#173127] text-white font-bold text-sm rounded-xl hover:bg-[#12271f] transition-all shadow-md"
+                className="flex-1 py-3 bg-[#173127] text-white font-bold text-sm rounded-xl hover:bg-[#12271f] transition-all shadow-md flex items-center justify-center gap-2"
               >
-                {telegramSaveLoading ? 'Saqlanmoqda...' : '💾 Sozlamalarni Saqlash'}
+                <Save size={16} />
+                <span>{telegramSaveLoading ? 'Saqlanmoqda...' : 'Sozlamalarni Saqlash'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleSendTelegramTest}
                 disabled={telegramTestLoading}
-                className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm rounded-xl transition-all border border-gray-200"
+                className="px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm rounded-xl transition-all border border-gray-200 flex items-center gap-2"
               >
-                {telegramTestLoading ? 'Yuborilmoqda...' : '🔔 Test Xabari'}
+                <Bell size={16} />
+                <span>{telegramTestLoading ? 'Yuborilmoqda...' : 'Test Xabari'}</span>
               </button>
             </div>
           </form>
 
           {/* Manual Dispatch & Download Actions */}
           <div className="pt-6 border-t border-gray-100 space-y-4">
-            <h3 className="text-sm font-bold text-[#173127] uppercase tracking-wider">⚡ Qo'lda Yuborish & Yuklab Olish</h3>
+            <h3 className="text-sm font-bold text-[#173127] uppercase tracking-wider flex items-center gap-1.5">
+              <Zap size={16} className="text-amber-500" />
+              <span>Qo'lda Yuborish & Yuklab Olish</span>
+            </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
@@ -609,7 +617,7 @@ const Settings = () => {
                   </div>
                   <p className="text-[11px] text-sky-700 font-normal">Xabar darhol bot orqali jo'natiladi</p>
                 </div>
-                <span className="text-xs bg-sky-600 text-white px-2.5 py-1 rounded-lg">Yuborish</span>
+                <span className="text-xs bg-sky-600 text-white px-2.5 py-1 rounded-lg font-bold">Yuborish</span>
               </button>
 
               <button
@@ -624,12 +632,15 @@ const Settings = () => {
                   </div>
                   <p className="text-[11px] text-emerald-700 font-normal">Matnli (.txt) fayl sifatida saqlash</p>
                 </div>
-                <span className="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded-lg">Yuklash</span>
+                <span className="text-xs bg-emerald-700 text-white px-2.5 py-1 rounded-lg font-bold">Yuklash</span>
               </button>
             </div>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 leading-relaxed font-medium">
-              ⏰ <strong>Avto-Hisobot Qoidasi:</strong> Tizim har kuni kechqurun soat <strong>22:00 da</strong> avtomatik tarzda barcha sifatli lidlar, sifatsiz lidlar, 1-8 sinf taqsimoti va operatorlar faoliyati hisobotini tuzib, Telegram bot orqali ushbu Chat ID ga yuboradi.
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 leading-relaxed font-medium flex items-start gap-2">
+              <Clock size={16} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong>Avto-Hisobot Qoidasi:</strong> Tizim har kuni kechqurun soat <strong>22:00 da</strong> avtomatik tarzda barcha sifatli lidlar, sifatsiz lidlar, 1-8 sinf taqsimoti va operatorlar faoliyati hisobotini tuzib, Telegram bot orqali ushbu Chat ID ga yuboradi.
+              </div>
             </div>
           </div>
         </div>
