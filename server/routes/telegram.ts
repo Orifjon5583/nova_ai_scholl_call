@@ -150,18 +150,6 @@ router.post('/send-test', authenticate, async (req: any, res: any) => {
         res.status(400).json({ error: error.message || 'Test xabarini yuborishda xatolik' });
     }
 });
-            return res.status(400).json({ error: 'Iltimos, Telegram Bot Token va Chat ID ni saqlang!' });
-        }
-
-        const testMsg = `<b>🔔 NOVA CALL CRM - TEST XABAR</b>\n\nTelegram Bot ulanishi muvaffaqiyatli o'rnatildi! Har kuni soat 22:00 da ushbu chatga avtomatik kunlik hisobot yuboriladi.`;
-        await sendTelegramMessage(token, chatId, testMsg);
-
-        res.json({ message: 'Test xabari Telegram botga yuborildi! ✅' });
-    } catch (error: any) {
-        console.error('Send test message error', error);
-        res.status(400).json({ error: error.message || 'Test xabarini yuborishda xatolik' });
-    }
-});
 
 // POST /api/telegram/send-report - Send daily report immediately to Telegram
 router.post('/send-report', authenticate, async (req: any, res: any) => {

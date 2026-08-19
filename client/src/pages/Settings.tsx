@@ -109,6 +109,19 @@ const Settings = () => {
     }
   };
 
+  const handleSendTelegramTest = async () => {
+    setTelegramTestLoading(true);
+    setTelegramMsg(null);
+    try {
+      const res = await api.post('/telegram/send-test');
+      setTelegramMsg({ text: res.data?.message || "Test xabari yuborildi!", error: false });
+    } catch (err: any) {
+      setTelegramMsg({ text: err.response?.data?.error || "Test xabari yuborishda xatolik", error: true });
+    } finally {
+      setTelegramTestLoading(false);
+    }
+  };
+
   const handleSendTelegramReportNow = async () => {
     setTelegramReportLoading(true);
     setTelegramMsg(null);
