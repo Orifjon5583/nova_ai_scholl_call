@@ -85,6 +85,24 @@ const Settings = () => {
     }
   };
 
+  const [telegramDetectLoading, setTelegramDetectLoading] = useState(false);
+
+  const handleDetectChatId = async () => {
+    setTelegramDetectLoading(true);
+    setTelegramMsg(null);
+    try {
+      const res = await api.post('/telegram/detect-chat-id', { token: telegramToken });
+      if (res.data?.chatId) {
+        setTelegramChatId(res.data.chatId);
+      }
+      setTelegramMsg({ text: res.data?.message || "Chat ID aniqlandi!", error: false });
+    } catch (err: any) {
+      setTelegramMsg({ text: err.response?.data?.error || "Chat ID topilmadi", error: true });
+    } finally {
+      setTelegramDetectLoading(false);
+    }
+  };
+
   const handleSendTelegramReportNow = async () => {
     setTelegramReportLoading(true);
     setTelegramMsg(null);
@@ -533,14 +551,24 @@ const Settings = () => {
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
                 Telegram Chat ID / Guruh ID <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                value={telegramChatId}
-                onChange={(e) => setTelegramChatId(e.target.value)}
-                placeholder="Masalan: -100123456789 yoki 123456789"
-                className="w-full p-3 border border-gray-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-[#173127] focus:outline-none"
-              />
-              <p className="text-[11px] text-gray-400 mt-1">Hisobot yuborilishi kerak bo'lgan Admin yoki Guruh Chat ID-si</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={telegramChatId}
+                  onChange={(e) => setTelegramChatId(e.target.value)}
+                  placeholder="Masalan: -100123456789 yoki 123456789"
+                  className="flex-1 p-3 border border-gray-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-[#173127] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleDetectChatId}
+                  disabled={telegramDetectLoading}
+                  className="bg-sky-600 hover:bg-sky-700 disabled:bg-gray-300 text-white font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
+                >
+                  {telegramDetectLoading ? 'Izlanmoqda...' : '🔍 Chat ID Avto-Topish'}
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">Chat ID-ni qo'lda kiritishingiz yoki botga Telegram'da bitta <strong>/start</strong> yuborib <strong>"🔍 Chat ID Avto-Topish"</strong> tugmasini bosishingiz mumkin!</p>
             </div>
 
             <div className="flex gap-3 pt-2">

@@ -57,6 +57,72 @@ router.post('/settings', authenticate, async (req: any, res: any) => {
     }
 });
 
+// POST /api/telegram/detect-chat-id - Auto detect Chat ID from Telegram getUpdates
+router.post('/detect-chat-id', authenticate, async (req: any, res: any) => {
+    try {
+        let { token } = await getTelegramConfig();
+        if (req.body.token && typeof req.body.token === 'string' && !req.body.token.includes('••••')) {
+            token = req.body.token.trim();
+        }
+
+        if (!token) {
+            return res.status(400).json({ error: 'Iltimos avval Telegram Bot Tokenini kiriting!' });
+        }
+
+        const url = `https://api.telegram.org/bot${token}/getUpdates`;
+        const resp = await fetch(url);
+        const data: any = await resp.json();
+
+        if (!data.ok) {
+            return res.status(400).json({ error: data.description || 'Bot token xato!' });
+        }
+
+        const updates = data.result || [];
+        if (updates.length === 0) {
+            return res.status(400).json({ 
+                error: 'Botda hali yangi xabar yo\'q. Telegramda botingizga kirib bitta "/start" yoki xabar yuboring va qayta ushbu tugmani bosing!',
+                needMessage: true 
+            });
+        }
+
+        let foundChatId = null;
+        let chatName = '';
+        for (let i = updates.length - 1; i >= 0; i--) {
+            const update = updates[i];
+            const chat = update.message?.chat || update.my_chat_member?.chat || update.channel_post?.chat;
+            if (chat && chat.id) {
+                foundChatId = String(chat.id);
+                chatName = chat.title || chat.first_name || chat.username || 'Chat';
+                break;
+            }
+        }
+
+        if (!foundChatId) {
+            return res.status(400).json({ error: 'Chat ID aniqlanmadi. Botga xabar yuborib qayta urinib ko\'ring.' });
+        }
+
+        await prisma.systemSetting.upsert({
+            where: { key: 'telegram_bot_token' },
+            update: { value: token },
+            create: { key: 'telegram_bot_token', value: token }
+        });
+
+        await prisma.systemSetting.upsert({
+            where: { key: 'telegram_chat_id' },
+            update: { value: foundChatId },
+            create: { key: 'telegram_chat_id', value: foundChatId }
+        });
+
+        res.json({ 
+            chatId: foundChatId, 
+            message: `Chat ID muvaffaqiyatli aniqlandi va saqlandi! (${chatName}: ${foundChatId}) ✅` 
+        });
+    } catch (error: any) {
+        console.error('Detect chat ID error', error);
+        res.status(500).json({ error: error.message || 'Chat ID ni aniqlashda xatolik' });
+    }
+});
+
 // POST /api/telegram/send-test - Send test message
 router.post('/send-test', authenticate, async (req: any, res: any) => {
     try {

@@ -101,7 +101,12 @@ const ensureAdminExists = async () => {
                     phone: '+998901234567'
                 }
             });
-            console.log('Default admin user (admin / admin123) created successfully!');
+        const botToken = await prisma.systemSetting.findUnique({ where: { key: 'telegram_bot_token' } });
+        if (!botToken) {
+            await prisma.systemSetting.create({
+                data: { key: 'telegram_bot_token', value: '8871556377:AAGnfS9t1KpUM03AeA-0yxouhrFKyRy8LvQ' }
+            });
+            console.log('Default Telegram Bot Token saved to database!');
         }
     } catch (e) {
         console.error('Failed to ensure admin user exists', e);
