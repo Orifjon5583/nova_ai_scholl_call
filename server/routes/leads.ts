@@ -61,12 +61,40 @@ const checkDuplicatePhone = async (phone: string) => {
     return !!existing;
 };
 
-// POST /api/leads - Yangi lid qo'shish (Takroriylikni tekshiradi)
+// Helper to get next operator in Round-Robin cycle
+let lastAssignedOperatorIndex = -1;
+
+const getNextRoundRobinOperatorId = async (): Promise<number | null> => {
+    try {
+        const operators = await prisma.user.findMany({
+            where: { role: 'operator', status: 'active' },
+            orderBy: { id: 'asc' },
+            select: { id: true }
+        });
+
+        if (operators.length === 0) return null;
+
+        lastAssignedOperatorIndex = (lastAssignedOperatorIndex + 1) % operators.length;
+        return operators[lastAssignedOperatorIndex].id;
+    } catch (e) {
+        console.error('Error fetching round-robin operators', e);
+        return null;
+    }
+};
+
+// POST /api/leads - Yangi lid qo'shish (Takroriylikni tekshiradi hamda Round-Robin bo'yicha taqsimlaydi)
 router.post('/', authenticate, async (req: any, res: any) => {
     try {
         const { name, phone, source, region, grade } = req.body;
         const isDup = await checkDuplicatePhone(phone);
         
+        let assignedOperatorId: number | null = null;
+        if (req.user.role === 'admin') {
+            assignedOperatorId = await getNextRoundRobinOperatorId();
+        } else {
+            assignedOperatorId = req.user.id;
+        }
+
         const lead = await prisma.lead.create({
             data: {
                 name,
@@ -75,7 +103,7 @@ router.post('/', authenticate, async (req: any, res: any) => {
                 region,
                 grade: grade || null,
                 isDuplicate: isDup,
-                assignedTo: req.user.role === 'admin' ? null : req.user.id
+                assignedTo: assignedOperatorId
             }
         });
 
@@ -120,6 +148,13 @@ router.post('/import', authenticate, async (req: any, res: any) => {
             const isDup = await checkDuplicatePhone(cleanPhone);
             if (isDup) duplicateCount++;
 
+            let assignedOperatorId: number | null = null;
+            if (req.user.role === 'admin') {
+                assignedOperatorId = await getNextRoundRobinOperatorId();
+            } else {
+                assignedOperatorId = req.user.id;
+            }
+
             const lead = await prisma.lead.create({
                 data: {
                     name: cleanName,
@@ -129,7 +164,7 @@ router.post('/import', authenticate, async (req: any, res: any) => {
                     grade: item.grade || null,
                     isDuplicate: isDup,
                     createdAt: parsedDate,
-                    assignedTo: req.user.role === 'admin' ? null : req.user.id,
+                    assignedTo: assignedOperatorId,
                     status: 'Yangi'
                 }
             });
@@ -268,6 +303,13 @@ router.post('/import-google-sheets', authenticate, async (req: any, res: any) =>
             const isDup = await checkDuplicatePhone(phone);
             if (isDup) duplicateCount++;
 
+            let assignedOperatorId: number | null = null;
+            if (req.user.role === 'admin') {
+                assignedOperatorId = await getNextRoundRobinOperatorId();
+            } else {
+                assignedOperatorId = req.user.id;
+            }
+
             const lead = await prisma.lead.create({
                 data: {
                     name,
@@ -276,7 +318,7 @@ router.post('/import-google-sheets', authenticate, async (req: any, res: any) =>
                     region,
                     grade,
                     isDuplicate: isDup,
-                    assignedTo: req.user.role === 'admin' ? null : req.user.id,
+                    assignedTo: assignedOperatorId,
                     status: 'Yangi'
                 }
             });
@@ -580,6 +622,52 @@ router.post('/:id/restore', authenticate, async (req: any, res: any) => {
     } catch (error) {
         console.error('Restore lead error', error);
         res.status(500).json({ error: 'Lidni tiklashda xatolik' });
+    }
+});
+
+// POST /api/leads/redistribute-round-robin - Biriktirilmagan lidlarni barcha faol operatorlarga teng bo'lish
+router.post('/redistribute-round-robin', authenticate, async (req: any, res: any) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Faqat Admin buni bajarishi mumkin' });
+        }
+
+        const unassignedLeads = await prisma.lead.findMany({
+            where: { assignedTo: null, deletedAt: null },
+            select: { id: true }
+        });
+
+        if (unassignedLeads.length === 0) {
+            return res.json({ message: 'Biriktirilmagan lidlar topilmadi', count: 0 });
+        }
+
+        const operators = await prisma.user.findMany({
+            where: { role: 'operator', status: 'active' },
+            orderBy: { id: 'asc' },
+            select: { id: true, name: true }
+        });
+
+        if (operators.length === 0) {
+            return res.status(400).json({ error: 'Faol operatorlar mavjud emas' });
+        }
+
+        let assignedCount = 0;
+        for (let i = 0; i < unassignedLeads.length; i++) {
+            const op = operators[i % operators.length];
+            await prisma.lead.update({
+                where: { id: unassignedLeads[i].id },
+                update: { assignedTo: op.id }
+            });
+            assignedCount++;
+        }
+
+        res.json({
+            message: `${assignedCount} ta biriktirilmagan lid ${operators.length} ta operatorga Round-Robin bo'yicha teng taqsimlandi! ✅`,
+            count: assignedCount
+        });
+    } catch (error) {
+        console.error('Redistribute error', error);
+        res.status(500).json({ error: 'Lidlarni taqsimlashda xatolik' });
     }
 });
 

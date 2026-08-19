@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Search, Plus, Download, Filter, List, LayoutGrid, ChevronLeft, Phone, Clock, MessageSquare, Save, MoreHorizontal, FileSpreadsheet, AlertTriangle, Check, X, Trash2, RotateCcw, Trash } from 'lucide-react';
+import { Search, Plus, Download, Filter, List, LayoutGrid, ChevronLeft, Phone, Clock, MessageSquare, Save, MoreHorizontal, FileSpreadsheet, AlertTriangle, Check, X, Trash2, RotateCcw, Trash, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import api from '../api';
 
@@ -268,6 +268,16 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
       alert('Lidlarni saqlashda xatolik yuz berdi');
     } finally {
       setImportLoading(false);
+    }
+  };
+
+  const handleRedistributeRoundRobin = async () => {
+    try {
+      const res = await api.post('/leads/redistribute-round-robin');
+      alert(res.data?.message || "Lidlar Round-Robin bo'yicha teng taqsimlandi!");
+      fetchLeads();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Lidlarni taqsimlashda xatolik yuz berdi");
     }
   };
 
@@ -816,15 +826,24 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
               <FileSpreadsheet size={18} /> Google Sheets import
             </button>
             {currentUser?.role === 'admin' && (
-              <button 
-                  onClick={() => {
-                    fetchDeletedLeads();
-                    setShowDeletedLeadsModal(true);
-                  }}
-                  className="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-sm"
-              >
-                <Trash2 size={18} /> O'chirilgan lidlar (Arxiv)
-              </button>
+              <>
+                <button 
+                    onClick={handleRedistributeRoundRobin}
+                    className="bg-sky-600 hover:bg-sky-700 text-white px-3.5 py-2 rounded-lg text-sm font-bold transition flex items-center gap-1.5 shadow-sm"
+                    title="Biriktirilmagan lidlarni barcha faol operatorlarga teng bo'lish"
+                >
+                  <RefreshCw size={16} /> Round-Robin Taqsimlash
+                </button>
+                <button 
+                    onClick={() => {
+                      fetchDeletedLeads();
+                      setShowDeletedLeadsModal(true);
+                    }}
+                    className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-2 rounded-lg text-sm font-bold transition flex items-center gap-1.5 shadow-sm"
+                >
+                  <Trash2 size={16} /> O'chirilgan lidlar (Arxiv)
+                </button>
+              </>
             )}
             <div className="relative">
                 <button 
