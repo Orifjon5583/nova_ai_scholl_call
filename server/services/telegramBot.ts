@@ -114,20 +114,31 @@ export const generateDailyReportText = async () => {
 };
 
 export const getTelegramConfig = async () => {
-    let token = process.env.TELEGRAM_BOT_TOKEN || '';
-    let chatId = process.env.TELEGRAM_CHAT_ID || '';
+    let token = process.env.TELEGRAM_BOT_TOKEN || '8871556377:AAGnfS9t1KpUM03AeA-0yxouhrFKyRy8LvQ';
+    let chatIds: string[] = [];
 
     try {
         const tokenSetting = await prisma.systemSetting.findUnique({ where: { key: 'telegram_bot_token' } });
-        const chatSetting = await prisma.systemSetting.findUnique({ where: { key: 'telegram_chat_id' } });
-
         if (tokenSetting && tokenSetting.value) token = tokenSetting.value;
-        if (chatSetting && chatSetting.value) chatId = chatSetting.value;
+
+        const chatIdsSetting = await prisma.systemSetting.findUnique({ where: { key: 'telegram_chat_ids' } });
+        if (chatIdsSetting && chatIdsSetting.value) {
+            try {
+                chatIds = JSON.parse(chatIdsSetting.value);
+            } catch {
+                chatIds = chatIdsSetting.value.split(',').map(s => s.trim()).filter(Boolean);
+            }
+        } else {
+            const singleSetting = await prisma.systemSetting.findUnique({ where: { key: 'telegram_chat_id' } });
+            if (singleSetting && singleSetting.value) {
+                chatIds = [singleSetting.value.trim()];
+            }
+        }
     } catch (e) {
         console.error('Error fetching telegram config from db', e);
     }
 
-    return { token, chatId };
+    return { token, chatIds };
 };
 
 export const sendTelegramMessage = async (token: string, chatId: string, text: string) => {
@@ -154,16 +165,24 @@ export const sendTelegramMessage = async (token: string, chatId: string, text: s
 };
 
 export const sendDailyReportToTelegram = async () => {
-    const { token, chatId } = await getTelegramConfig();
-    if (!token || !chatId) {
-        console.log('Telegram Bot Token yoki Chat ID kiritilmagan. Avto-hisobot o\'tkazib yuborildi.');
+    const { token, chatIds } = await getTelegramConfig();
+    if (!token || chatIds.length === 0) {
+        console.log('Telegram Bot Token yoki Chat ID-lar kiritilmagan. Avto-hisobot o\'tkazib yuborildi.');
         return false;
     }
 
     const reportText = await generateDailyReportText();
-    await sendTelegramMessage(token, chatId, reportText);
-    console.log('Daily 22:00 Telegram report sent successfully!');
-    return true;
+    let sentCount = 0;
+    for (const chatId of chatIds) {
+        try {
+            await sendTelegramMessage(token, chatId, reportText);
+            sentCount++;
+        } catch (e) {
+            console.error(`Failed to send report to chat ${chatId}`, e);
+        }
+    }
+    console.log(`Daily 22:00 Telegram report sent successfully to ${sentCount} chat(s)!`);
+    return sentCount > 0;
 };
 
 // Scheduler for 22:00 daily

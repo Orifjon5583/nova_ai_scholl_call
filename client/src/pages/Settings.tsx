@@ -32,10 +32,12 @@ const Settings = () => {
 
   // Telegram Bot Settings state
   const [telegramToken, setTelegramToken] = useState('');
-  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramChatIds, setTelegramChatIds] = useState<string[]>([]);
+  const [newChatId, setNewChatId] = useState('');
   const [telegramSaveLoading, setTelegramSaveLoading] = useState(false);
   const [telegramTestLoading, setTelegramTestLoading] = useState(false);
   const [telegramReportLoading, setTelegramReportLoading] = useState(false);
+  const [telegramDetectLoading, setTelegramDetectLoading] = useState(false);
   const [telegramMsg, setTelegramMsg] = useState<{ text: string; error: boolean } | null>(null);
 
   useEffect(() => {
@@ -50,20 +52,20 @@ const Settings = () => {
       const res = await api.get('/telegram/settings');
       if (res.data) {
         setTelegramToken(res.data.token || '');
-        setTelegramChatId(res.data.chatId || '');
+        setTelegramChatIds(res.data.chatIds || []);
       }
     } catch (err) {
       console.error('Fetch telegram settings error', err);
     }
   };
 
-  const handleSaveTelegramSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveTelegramSettings = async (overrideChatIds?: string[]) => {
     setTelegramSaveLoading(true);
     setTelegramMsg(null);
+    const targetChatIds = overrideChatIds !== undefined ? overrideChatIds : telegramChatIds;
     try {
-      await api.post('/telegram/settings', { token: telegramToken, chatId: telegramChatId });
-      setTelegramMsg({ text: "Telegram bot sozlamalari muvaffaqiyatli saqlandi!", error: false });
+      await api.post('/telegram/settings', { token: telegramToken, chatIds: targetChatIds });
+      setTelegramMsg({ text: "Telegram bot sozlamalari saqlandi!", error: false });
       fetchTelegramSettings();
     } catch (err: any) {
       setTelegramMsg({ text: err.response?.data?.error || "Sozlamalarni saqlashda xatolik", error: true });
@@ -72,28 +74,32 @@ const Settings = () => {
     }
   };
 
-  const handleSendTelegramTest = async () => {
-    setTelegramTestLoading(true);
-    setTelegramMsg(null);
-    try {
-      const res = await api.post('/telegram/send-test');
-      setTelegramMsg({ text: res.data?.message || "Test xabari yuborildi!", error: false });
-    } catch (err: any) {
-      setTelegramMsg({ text: err.response?.data?.error || "Test xabari yuborishda xatolik", error: true });
-    } finally {
-      setTelegramTestLoading(false);
+  const handleAddChatId = () => {
+    if (!newChatId.trim()) return;
+    const clean = newChatId.trim();
+    if (telegramChatIds.includes(clean)) {
+      setTelegramMsg({ text: "Ushbu Chat ID ro'yxatda allaqachon mavjud!", error: true });
+      return;
     }
+    const updated = [...telegramChatIds, clean];
+    setTelegramChatIds(updated);
+    setNewChatId('');
+    handleSaveTelegramSettings(updated);
   };
 
-  const [telegramDetectLoading, setTelegramDetectLoading] = useState(false);
+  const handleRemoveChatId = (idToRemove: string) => {
+    const updated = telegramChatIds.filter(id => id !== idToRemove);
+    setTelegramChatIds(updated);
+    handleSaveTelegramSettings(updated);
+  };
 
   const handleDetectChatId = async () => {
     setTelegramDetectLoading(true);
     setTelegramMsg(null);
     try {
       const res = await api.post('/telegram/detect-chat-id', { token: telegramToken });
-      if (res.data?.chatId) {
-        setTelegramChatId(res.data.chatId);
+      if (res.data?.chatIds) {
+        setTelegramChatIds(res.data.chatIds);
       }
       setTelegramMsg({ text: res.data?.message || "Chat ID aniqlandi!", error: false });
     } catch (err: any) {
@@ -548,17 +554,56 @@ const Settings = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                Telegram Chat ID / Guruh ID <span className="text-red-500">*</span>
+              <label className="block text-xs font-bold text-gray-700 uppercase mb-2">
+                Telegram Chat ID-lar Ro'yxati (Guruhlar / Adminlar) <span className="text-red-500">*</span>
               </label>
+
+              {/* Chat IDs List */}
+              <div className="space-y-2 mb-3">
+                {telegramChatIds.length === 0 ? (
+                  <div className="p-3 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-xs text-gray-400 italic text-center">
+                    Hozircha birorta ham Chat ID biriktirilmagan
+                  </div>
+                ) : (
+                  telegramChatIds.map((cid, idx) => (
+                    <div key={cid} className="flex items-center justify-between p-3 bg-sky-50/70 border border-sky-200 rounded-xl">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-sky-600 text-white font-bold text-[10px] flex items-center justify-center">
+                          {idx + 1}
+                        </span>
+                        <span className="font-mono text-sm font-bold text-sky-950">{cid}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveChatId(cid)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-lg transition text-xs font-bold flex items-center gap-1"
+                        title="Ushbu Chat ID ni olib tashlash"
+                      >
+                        <Trash2 size={14} />
+                        <span>O'chirish</span>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Add New Chat ID inputs */}
               <div className="flex gap-2">
                 <input
                   type="text"
-                  value={telegramChatId}
-                  onChange={(e) => setTelegramChatId(e.target.value)}
-                  placeholder="Masalan: -100123456789 yoki 123456789"
+                  value={newChatId}
+                  onChange={(e) => setNewChatId(e.target.value)}
+                  placeholder="Yangi Chat ID kiriting (-10012345...)"
                   className="flex-1 p-3 border border-gray-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-[#173127] focus:outline-none"
                 />
+                <button
+                  type="button"
+                  onClick={handleAddChatId}
+                  className="bg-[#173127] hover:bg-[#12271f] text-white font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
+                >
+                  <Plus size={16} />
+                  <span>Qo'shish</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleDetectChatId}
@@ -566,17 +611,18 @@ const Settings = () => {
                   className="bg-sky-600 hover:bg-sky-700 disabled:bg-gray-300 text-white font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
                 >
                   <Search size={14} />
-                  <span>{telegramDetectLoading ? 'Izlanmoqda...' : 'Chat ID Avto-Topish'}</span>
+                  <span>{telegramDetectLoading ? 'Izlanmoqda...' : '🔍 Avto-Topish'}</span>
                 </button>
               </div>
               <p className="text-[11px] text-gray-400 mt-1">
-                Chat ID-ni qo'lda kiritishingiz yoki botga Telegram'da bitta <strong>/start</strong> yuborib <strong>"Chat ID Avto-Topish"</strong> tugmasini bosishingiz mumkin!
+                2 ta, 3 ta yoki xohlagancha Chat ID (guruh va shaxsiy admin) qo'shishingiz mumkin. Bot barcha qo'shilgan chatlarga hisobot yuboradi.
               </p>
             </div>
 
             <div className="flex gap-3 pt-2">
               <button
-                type="submit"
+                type="button"
+                onClick={() => handleSaveTelegramSettings()}
                 disabled={telegramSaveLoading}
                 className="flex-1 py-3 bg-[#173127] text-white font-bold text-sm rounded-xl hover:bg-[#12271f] transition-all shadow-md flex items-center justify-center gap-2"
               >

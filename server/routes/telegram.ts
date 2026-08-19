@@ -13,11 +13,11 @@ const router = express.Router();
 // GET /api/telegram/settings - Get current Telegram Bot settings
 router.get('/settings', authenticate, async (req: any, res: any) => {
     try {
-        const { token, chatId } = await getTelegramConfig();
+        const { token, chatIds } = await getTelegramConfig();
         res.json({
             token: token ? '••••••••' + token.slice(-5) : '',
             hasToken: !!token,
-            chatId
+            chatIds
         });
     } catch (error) {
         console.error(error);
@@ -32,7 +32,7 @@ router.post('/settings', authenticate, async (req: any, res: any) => {
             return res.status(403).json({ error: 'Faqat Admin Telegram sozlamalarini o\'zgartirishi mumkin' });
         }
 
-        const { token, chatId } = req.body;
+        const { token, chatIds } = req.body;
 
         if (token && typeof token === 'string' && !token.includes('••••')) {
             await prisma.systemSetting.upsert({
@@ -42,11 +42,12 @@ router.post('/settings', authenticate, async (req: any, res: any) => {
             });
         }
 
-        if (chatId !== undefined && typeof chatId === 'string') {
+        if (Array.isArray(chatIds)) {
+            const cleanChatIds = chatIds.map((c: any) => String(c).trim()).filter(Boolean);
             await prisma.systemSetting.upsert({
-                where: { key: 'telegram_chat_id' },
-                update: { value: chatId.trim() },
-                create: { key: 'telegram_chat_id', value: chatId.trim() }
+                where: { key: 'telegram_chat_ids' },
+                update: { value: JSON.stringify(cleanChatIds) },
+                create: { key: 'telegram_chat_ids', value: JSON.stringify(cleanChatIds) }
             });
         }
 
@@ -60,7 +61,7 @@ router.post('/settings', authenticate, async (req: any, res: any) => {
 // POST /api/telegram/detect-chat-id - Auto detect Chat ID from Telegram getUpdates
 router.post('/detect-chat-id', authenticate, async (req: any, res: any) => {
     try {
-        let { token } = await getTelegramConfig();
+        let { token, chatIds } = await getTelegramConfig();
         if (req.body.token && typeof req.body.token === 'string' && !req.body.token.includes('••••')) {
             token = req.body.token.trim();
         }
@@ -101,21 +102,25 @@ router.post('/detect-chat-id', authenticate, async (req: any, res: any) => {
             return res.status(400).json({ error: 'Chat ID aniqlanmadi. Botga xabar yuborib qayta urinib ko\'ring.' });
         }
 
+        // Save token
         await prisma.systemSetting.upsert({
             where: { key: 'telegram_bot_token' },
             update: { value: token },
             create: { key: 'telegram_bot_token', value: token }
         });
 
+        // Add found Chat ID to list if not already present
+        const updatedChatIds = Array.from(new Set([...chatIds, foundChatId]));
         await prisma.systemSetting.upsert({
-            where: { key: 'telegram_chat_id' },
-            update: { value: foundChatId },
-            create: { key: 'telegram_chat_id', value: foundChatId }
+            where: { key: 'telegram_chat_ids' },
+            update: { value: JSON.stringify(updatedChatIds) },
+            create: { key: 'telegram_chat_ids', value: JSON.stringify(updatedChatIds) }
         });
 
         res.json({ 
             chatId: foundChatId, 
-            message: `Chat ID muvaffaqiyatli aniqlandi va saqlandi! (${chatName}: ${foundChatId}) ✅` 
+            chatIds: updatedChatIds,
+            message: `Chat ID muvaffaqiyatli aniqlandi va ro'yxatga qo'shildi! (${chatName}: ${foundChatId}) ✅` 
         });
     } catch (error: any) {
         console.error('Detect chat ID error', error);
@@ -123,11 +128,32 @@ router.post('/detect-chat-id', authenticate, async (req: any, res: any) => {
     }
 });
 
-// POST /api/telegram/send-test - Send test message
+// POST /api/telegram/send-test - Send test message to all registered chats
 router.post('/send-test', authenticate, async (req: any, res: any) => {
     try {
-        const { token, chatId } = await getTelegramConfig();
-        if (!token || !chatId) {
+        const { token, chatIds } = await getTelegramConfig();
+        if (!token || chatIds.length === 0) {
+            return res.status(400).json({ error: 'Iltimos, Telegram Bot Token va kamida bitta Chat ID kiriting!' });
+        }
+
+        const testMsg = `<b>🔔 NOVA CALL CRM - TEST XABAR</b>\n\nTelegram Bot ulanishi muvaffaqiyatli o'rnatildi! Har kuni soat 22:00 da ushbu chatga avtomatik kunlik hisobot yuboriladi.`;
+        
+        let sentCount = 0;
+        for (const chatId of chatIds) {
+            try {
+                await sendTelegramMessage(token, chatId, testMsg);
+                sentCount++;
+            } catch (e) {
+                console.error(`Error sending test msg to chat ${chatId}`, e);
+            }
+        }
+
+        res.json({ message: `Test xabari ${sentCount} ta Telegram chatga yuborildi! ✅` });
+    } catch (error: any) {
+        console.error('Send test message error', error);
+        res.status(400).json({ error: error.message || 'Test xabarini yuborishda xatolik' });
+    }
+});
             return res.status(400).json({ error: 'Iltimos, Telegram Bot Token va Chat ID ni saqlang!' });
         }
 
