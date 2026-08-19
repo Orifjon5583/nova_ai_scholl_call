@@ -76,17 +76,6 @@ const Reports = () => {
     window.open('http://localhost:3000/api/telegram/download-report', '_blank');
   };
 
-    const csvContent = "\uFEFF" + [headers.join(','), ...rows.map((r: any) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Nova_CRM_Lidlar_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <div className="p-8 h-full flex flex-col">
       {/* Header */}
