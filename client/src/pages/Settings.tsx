@@ -3,9 +3,23 @@ import { Megaphone, MessageSquare, Shield, Bell, Send, CheckCircle2, Clock, Plus
 import api from '../api';
 
 const Settings = () => {
+  const getUserFromStorage = () => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr && userStr !== 'undefined') {
+        return JSON.parse(userStr);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
+  };
+
+  const initialUser = getUserFromStorage();
   const [activeTab, setActiveTab] = useState<'announcements' | 'support' | 'profile' | 'telegram'>('announcements');
-  const [userRole, setUserRole] = useState<string>('operator');
-  const [userId, setUserId] = useState<number | null>(null);
+  const [userRole, setUserRole] = useState<string>(initialUser?.role || 'admin');
+  const [userFullName, setUserFullName] = useState<string>(initialUser?.name || 'Admin');
+  const [userId, setUserId] = useState<number | null>(initialUser?.id || null);
 
   // Announcements state
   const [announcements, setAnnouncements] = useState<any[]>([]);
@@ -141,6 +155,7 @@ const Settings = () => {
       if (res.data) {
         setUserRole(res.data.role);
         setUserId(res.data.id);
+        if (res.data.name) setUserFullName(res.data.name);
       }
     } catch (err) {
       console.error(err);
@@ -459,8 +474,13 @@ const Settings = () => {
               <UserCheck size={28} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-[#173127]">Profil Ma'lumotlari</h2>
-              <p className="text-xs text-gray-500">Tizimdagi rol: <strong className="uppercase">{userRole}</strong></p>
+              <h2 className="text-lg font-bold text-[#173127]">{userFullName}</h2>
+              <p className="text-xs text-gray-500 flex items-center gap-1.5 mt-0.5">
+                <span>Tizimdagi rol:</span>
+                <span className={`px-2 py-0.5 rounded-md font-bold uppercase text-[10px] ${userRole === 'admin' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+                  {userRole === 'admin' ? 'SUPER ADMIN' : 'OPERATOR'}
+                </span>
+              </p>
             </div>
           </div>
 
