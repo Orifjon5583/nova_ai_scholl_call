@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserPlus, Key, Trash2, Phone, UserCheck, ShieldCheck, Search, Users } from 'lucide-react';
+import { UserPlus, Key, Trash2, Phone, UserCheck, ShieldCheck, Search, Users, Edit2 } from 'lucide-react';
 import api from '../api';
 
 const Operators = () => {
@@ -13,6 +13,15 @@ const Operators = () => {
     name: '',
     username: '',
     password: '',
+    phone: ''
+  });
+
+  // Edit Operator State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    id: 0,
+    name: '',
+    username: '',
     phone: ''
   });
 
@@ -48,6 +57,20 @@ const Operators = () => {
       fetchOperators();
     } catch (err: any) {
       alert(err.response?.data?.error || "Operator qo'shishda xatolik");
+    }
+  };
+
+  const handleUpdateOperator = async () => {
+    if (!editForm.name || !editForm.username) {
+      alert("Ism va login kiritilishi shart!");
+      return;
+    }
+    try {
+      await api.put(`/operators/${editForm.id}`, editForm);
+      setShowEditModal(false);
+      fetchOperators();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Operatorni yangilashda xatolik");
     }
   };
 
@@ -169,6 +192,16 @@ const Operators = () => {
                     <td className="py-4 px-6 flex items-center gap-2">
                       <button
                         onClick={() => {
+                          setEditForm({ id: op.id, name: op.name, username: op.username, phone: op.phone || '' });
+                          setShowEditModal(true);
+                        }}
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-600 p-2 rounded-lg border border-blue-200 transition"
+                        title="Tahrirlash"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => {
                           setSelectedOperator(op);
                           setShowPasswordModal(true);
                         }}
@@ -258,6 +291,55 @@ const Operators = () => {
               className="bg-[#008F4C] hover:bg-[#007041] text-white py-3.5 rounded-xl font-bold transition shadow-sm mt-2"
             >
               Operatorni Saqlash
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Operator Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-sm flex justify-center items-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 flex flex-col gap-4">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="font-bold text-xl text-[#173127]">Operatorni Tahrirlash</h3>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 hover:text-gray-600 font-bold">✕</button>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 mb-1 block">To'liq Ismi (F.I.SH)</label>
+              <input
+                type="text"
+                value={editForm.name}
+                onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#008F4C] text-sm font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 mb-1 block">Tizimga kirish logini (Username)</label>
+              <input
+                type="text"
+                value={editForm.username}
+                onChange={e => setEditForm({ ...editForm, username: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#008F4C] text-sm font-medium"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-gray-500 mb-1 block">Telefon Raqami (Ixtiyoriy)</label>
+              <input
+                type="text"
+                value={editForm.phone}
+                onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#008F4C] text-sm font-medium"
+              />
+            </div>
+
+            <button
+              onClick={handleUpdateOperator}
+              className="bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold transition shadow-sm mt-2"
+            >
+              O'zgarishlarni Saqlash
             </button>
           </div>
         </div>

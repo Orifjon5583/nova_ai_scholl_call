@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from './prismaClient';
+import cron from 'node-cron';
 
 dotenv.config();
 
@@ -77,6 +78,8 @@ import reportsRouter from './routes/reports';
 import announcementsRouter from './routes/announcements';
 import telegramRouter from './routes/telegram';
 import { initTelegramScheduler } from './services/telegramBot';
+import { initBotPolling } from './services/botPolling';
+import { syncGoogleSheets } from './services/sheetSync';
 
 app.use('/api/leads', leadsRouter);
 app.use('/api/dashboard', dashboardRouter);
@@ -119,5 +122,15 @@ const ensureAdminExists = async () => {
 app.listen(PORT, async () => {
     await ensureAdminExists();
     initTelegramScheduler();
+    await initBotPolling();
+    
+    // Google Sheets jadvalidan avtomatik tekshiruv (Har 1 soatda)
+    cron.schedule('0 * * * *', () => {
+        syncGoogleSheets();
+    });
+
     console.log(`Server running on http://localhost:${PORT}`);
 });
+
+// Trigger nodemon restart for new bot token
+

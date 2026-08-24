@@ -36,6 +36,8 @@ model Lead {
   source             String?
   region             String?
   grade              String?   // '1-sinf', '2-sinf', ..., '8-sinf'
+  score              Int?
+  maxScore           Int?
   isDuplicate        Boolean   @default(false)
   quality            String    @default("unknown")
   status             String    @default("waiting")
@@ -147,4 +149,13 @@ model SystemSetting {
   key       String   @unique
   value     String
   updatedAt DateTime @updatedAt
+}
+
+model TelegramUser {
+  chatId     String   @id
+  name       String?
+  language   String   @default("uz") // 'uz' or 'ru'
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

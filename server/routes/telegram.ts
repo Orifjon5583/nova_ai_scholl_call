@@ -127,20 +127,28 @@ router.post('/detect-chat-id', authenticate, async (req: any, res: any) => {
 // POST /api/telegram/send-test - Send test message to all registered chats
 router.post('/send-test', authenticate, async (req: any, res: any) => {
     try {
-        const { token, chatIds } = await getTelegramConfig();
-        if (!token || chatIds.length === 0) {
-            return res.status(400).json({ error: 'Iltimos, Telegram Bot Token va kamida bitta Chat ID kiriting!' });
+        const { token } = await getTelegramConfig();
+        if (!token) {
+            return res.status(400).json({ error: 'Iltimos, Telegram Bot Token kiriting!' });
+        }
+
+        const users = await prisma.telegramUser.findMany({
+            where: { isApproved: true }
+        });
+
+        if (users.length === 0) {
+            return res.status(400).json({ error: 'Tasdiqlangan bot foydalanuvchilari topilmadi! Iltimos, admin paneldan bot foydalanuvchilarini tasdiqlang.' });
         }
 
         const testMsg = `<b>🔔 NOVA CALL CRM - TEST XABAR</b>\n\nTelegram Bot ulanishi muvaffaqiyatli o'rnatildi! Har kuni soat 22:00 da ushbu chatga avtomatik kunlik hisobot yuboriladi.`;
         
         let sentCount = 0;
-        for (const chatId of chatIds) {
+        for (const user of users) {
             try {
-                await sendTelegramMessage(token, chatId, testMsg);
+                await sendTelegramMessage(token, user.chatId, testMsg);
                 sentCount++;
             } catch (e) {
-                console.error(`Error sending test msg to chat ${chatId}`, e);
+                console.error(`Error sending test msg to chat ${user.chatId}`, e);
             }
         }
 
@@ -180,6 +188,45 @@ router.get('/download-report', authenticate, async (req: any, res: any) => {
     } catch (error) {
         console.error('Download report error', error);
         res.status(500).json({ error: 'Hisobotni yuklab olishda xatolik' });
+    }
+});
+
+// GET /api/telegram/bot-users
+router.get('/bot-users', authenticate, async (req: any, res: any) => {
+    try {
+        const users = await prisma.telegramUser.findMany({
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(users);
+    } catch (error) {
+        console.error('Bot users GET error:', error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// POST /api/telegram/bot-users/:chatId/approve
+router.post('/bot-users/:chatId/approve', authenticate, async (req: any, res: any) => {
+    try {
+        const { chatId } = req.params;
+        const { isApproved } = req.body;
+        const user = await prisma.telegramUser.update({
+            where: { chatId },
+            data: { isApproved }
+        });
+        res.json({ message: 'Holat o\'zgartirildi', user });
+    } catch (error) {
+        res.status(500).json({ error: 'Xatolik' });
+    }
+});
+
+// DELETE /api/telegram/bot-users/:chatId
+router.delete('/bot-users/:chatId', authenticate, async (req: any, res: any) => {
+    try {
+        const { chatId } = req.params;
+        await prisma.telegramUser.delete({ where: { chatId } });
+        res.json({ message: 'O\'chirildi' });
+    } catch (error) {
+        res.status(500).json({ error: 'Xatolik' });
     }
 });
 

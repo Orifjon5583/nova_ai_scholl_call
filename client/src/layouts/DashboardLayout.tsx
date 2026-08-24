@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, PhoneCall, CheckSquare, BarChart3, Settings, LogOut, ChevronDown, ChevronRight, UserCog, Bell, Search, Menu } from 'lucide-react';
+import { LayoutDashboard, Users, PhoneCall, CheckSquare, BarChart3, Settings, LogOut, ChevronDown, ChevronRight, UserCog, Bell, Search, Menu, Globe } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import api from '../api';
 
 const DashboardLayout = () => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [crmOpen, setCrmOpen] = useState(location.pathname.startsWith('/crm'));
@@ -31,13 +33,13 @@ const DashboardLayout = () => {
   };
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', roles: ['admin', 'operator'] },
-    { icon: Users, label: 'CRM (Kanban)', path: '/crm/pipeline', roles: ['admin', 'operator'] },
-    { icon: PhoneCall, label: 'Qo\'ng\'iroqlar', path: '/calls', roles: ['admin', 'operator'] },
-    { icon: CheckSquare, label: 'Vazifalar', path: '/tasks', roles: ['admin', 'operator'] },
-    { icon: UserCog, label: 'Operatorlar', path: '/operators', roles: ['admin'] },
-    { icon: BarChart3, label: 'Hisobotlar', path: '/reports', roles: ['admin'] },
-    { icon: Settings, label: 'Sozlamalar', path: '/settings', roles: ['admin'] },
+    { icon: LayoutDashboard, label: t('sidebar.dashboard'), path: '/dashboard', roles: ['admin', 'operator'] },
+    { icon: Users, label: t('sidebar.crm'), path: '/crm/pipeline', roles: ['admin', 'operator'] },
+    { icon: PhoneCall, label: t('sidebar.calls'), path: '/calls', roles: ['admin', 'operator'] },
+    { icon: CheckSquare, label: t('sidebar.tasks'), path: '/tasks', roles: ['admin', 'operator'] },
+    { icon: UserCog, label: t('sidebar.operators'), path: '/operators', roles: ['admin'] },
+    { icon: BarChart3, label: t('sidebar.reports'), path: '/reports', roles: ['admin'] },
+    { icon: Settings, label: t('sidebar.settings'), path: '/settings', roles: ['admin'] },
   ];
 
   const filteredMenuItems = menuItems.filter(item => item.roles.includes(user?.role || 'operator'));
@@ -61,7 +63,6 @@ const DashboardLayout = () => {
         const { data } = await api.get('/dashboard');
         const list: any[] = [];
 
-        // 1. Overdue Lead calls
         if (data?.stats?.overdueLeadsList) {
           data.stats.overdueLeadsList.forEach((lead: any) => {
             const id = `lead-${lead.id}`;
@@ -77,7 +78,6 @@ const DashboardLayout = () => {
           });
         }
 
-        // 2. Admin Assigned Tasks
         if (data?.stats?.assignedTasksList) {
           data.stats.assignedTasksList.forEach((task: any) => {
             const id = `task-${task.id}`;
@@ -95,7 +95,6 @@ const DashboardLayout = () => {
 
         setNotifications(list);
 
-        // Trigger attention-grabbing popup toast ONLY for new unread notifications that haven't popped up yet
         const newUnread = list.filter(n => !n.isRead && !shownToastIds.includes(n.id));
         if (newUnread.length > 0) {
           const first = newUnread[0];
@@ -141,17 +140,22 @@ const DashboardLayout = () => {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   const getPageTitle = () => {
-    if (location.pathname === '/dashboard') return 'Dashboard';
-    if (location.pathname.startsWith('/crm')) return 'CRM / Barcha lidlar';
+    if (location.pathname === '/dashboard') return t('sidebar.dashboard');
+    if (location.pathname.startsWith('/crm')) return t('crm.title');
     if (location.pathname === '/calls') return 'Qo\'ng\'iroq ekrani';
     if (location.pathname === '/tasks') return 'Vazifalar';
-    if (location.pathname === '/operators') return 'Operatorlar';
+    if (location.pathname === '/operators') return t('sidebar.operators');
     if (location.pathname === '/reports') return 'Hisobotlar';
-    if (location.pathname === '/settings') return 'Sozlamalar';
-    return 'Dashboard';
+    if (location.pathname === '/settings') return t('sidebar.settings');
+    return t('sidebar.dashboard');
   };
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const toggleLanguage = () => {
+    const nextLang = i18n.language === 'uz' ? 'ru' : 'uz';
+    i18n.changeLanguage(nextLang);
+  };
 
   return (
     <div className="flex h-screen bg-[#F5F7F5] overflow-hidden">
@@ -201,11 +205,6 @@ const DashboardLayout = () => {
                 <>
                   <item.icon size={20} className={isActive ? 'text-[#173127]' : 'text-gray-200'} />
                   <span className="flex-1">{item.label}</span>
-                  {item.label === 'Vazifalar' && notifications.length > 0 && (
-                    <span className="text-[11px] font-black px-2 py-0.5 rounded-full shadow-md bg-red-500 text-white animate-pulse">
-                      {notifications.length}
-                    </span>
-                  )}
                 </>
               )}
             </NavLink>
@@ -218,7 +217,7 @@ const DashboardLayout = () => {
             className="flex items-center gap-3 text-gray-300 hover:text-red-400 transition w-full px-4 py-2.5 hover:bg-[#004A2B] rounded-xl text-sm font-semibold"
           >
             <LogOut size={20} />
-            <span>Chiqish</span>
+            <span>{t('sidebar.logout')}</span>
           </button>
         </div>
       </aside>
@@ -251,7 +250,7 @@ const DashboardLayout = () => {
                       <>
                         <item.icon size={20} className={isActive ? 'text-[#173127]' : 'text-gray-200'} />
                         <span className="flex-1">{item.label}</span>
-                        {item.label === 'Vazifalar' && notifications.length > 0 && (
+                        {item.path === '/tasks' && notifications.length > 0 && (
                           <span className="text-[11px] font-black px-2 py-0.5 rounded-full shadow-md bg-red-500 text-white animate-pulse">
                             {notifications.length}
                           </span>
@@ -271,7 +270,7 @@ const DashboardLayout = () => {
             className="flex items-center gap-3 text-gray-300 hover:text-red-400 transition w-full px-4 py-2 hover:bg-[#004A2B] rounded-lg"
           >
             <LogOut size={20} />
-            <span>Chiqish</span>
+            <span>{t('sidebar.logout')}</span>
           </button>
         </div>
       </aside>
@@ -292,11 +291,21 @@ const DashboardLayout = () => {
             </h1>
           </div>
           <div className="flex items-center gap-6">
+            
+            {/* Language Switcher */}
+            <button 
+              onClick={toggleLanguage}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-sm font-semibold text-gray-700"
+            >
+              <Globe size={16} className="text-[#005B35]" />
+              {i18n.language === 'ru' ? 'RU' : 'UZ'}
+            </button>
+
             {/* Search */}
             <div className="relative hidden md:block">
               <input 
                 type="text" 
-                placeholder="Qidirish..." 
+                placeholder={t('header.search')} 
                 className="pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#005B35]"
               />
               <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />

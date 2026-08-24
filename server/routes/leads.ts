@@ -62,22 +62,28 @@ const checkDuplicatePhone = async (phone: string) => {
 };
 
 // Helper to get next operator in Round-Robin cycle
-let lastAssignedOperatorIndex = -1;
-
+// Helper to get next operator based on load balancing
 const getNextRoundRobinOperatorId = async (): Promise<number | null> => {
     try {
         const operators = await prisma.user.findMany({
-            where: { role: 'operator', status: 'active' },
-            orderBy: { id: 'asc' },
-            select: { id: true }
+            where: { role: 'operator', status: 'online' },
+            select: { 
+                id: true,
+                _count: {
+                    select: { assignedLeads: { where: { status: { notIn: ['Arxiv', 'Sotildi', 'Qiziqmadi'] }, deletedAt: null } } }
+                }
+            }
         });
 
         if (operators.length === 0) return null;
 
-        lastAssignedOperatorIndex = (lastAssignedOperatorIndex + 1) % operators.length;
-        return operators[lastAssignedOperatorIndex].id;
-    } catch (e) {
-        console.error('Error fetching round-robin operators', e);
+        // Operatorlarni ularga biriktirilgan aktiv lidlar soniga qarab o'sish tartibida saralaymiz
+        operators.sort((a, b) => a._count.assignedLeads - b._count.assignedLeads);
+        
+        // Eng kam lidga ega operatorni qaytaramiz
+        return operators[0].id;
+    } catch (err) {
+        console.error('Round robin error', err);
         return null;
     }
 };
@@ -642,9 +648,12 @@ router.post('/redistribute-round-robin', authenticate, async (req: any, res: any
         }
 
         const operators = await prisma.user.findMany({
-            where: { role: 'operator', status: 'active' },
-            orderBy: { id: 'asc' },
-            select: { id: true, name: true }
+            where: { role: 'operator', status: 'online' },
+            select: { 
+                id: true, 
+                name: true,
+                _count: { select: { assignedLeads: { where: { status: { notIn: ['Arxiv', 'Sotildi', 'Qiziqmadi'] }, deletedAt: null } } } }
+            }
         });
 
         if (operators.length === 0) {
@@ -653,11 +662,16 @@ router.post('/redistribute-round-robin', authenticate, async (req: any, res: any
 
         let assignedCount = 0;
         for (let i = 0; i < unassignedLeads.length; i++) {
-            const op = operators[i % operators.length];
+            // Har bir qadamda operatorlarni lidlar soni bo'yicha qayta saralaymiz (har doim eng kam lidlisi 0-indeksda bo'ladi)
+            operators.sort((a, b) => a._count.assignedLeads - b._count.assignedLeads);
+            const op = operators[0];
+            
             await prisma.lead.update({
                 where: { id: unassignedLeads[i].id },
-                update: { assignedTo: op.id }
+                data: { assignedTo: op.id }
             });
+            
+            op._count.assignedLeads++; // Soni oshiramiz
             assignedCount++;
         }
 

@@ -102,6 +102,45 @@ router.post('/', authenticate, adminOnly, async (req: any, res: any) => {
     }
 });
 
+// PUT /api/operators/:id - Update operator details
+router.put('/:id', authenticate, adminOnly, async (req: any, res: any) => {
+    try {
+        const operatorId = parseInt(req.params.id);
+        const { name, username, phone } = req.body;
+
+        if (!name || !username) {
+            return res.status(400).json({ error: 'Ism va login kiritilishi shart' });
+        }
+
+        const existing = await prisma.user.findUnique({ where: { username } });
+        if (existing && existing.id !== operatorId) {
+            return res.status(400).json({ error: 'Ushbu login band, boshqa login tanlang' });
+        }
+
+        const updatedOperator = await prisma.user.update({
+            where: { id: operatorId },
+            data: {
+                name,
+                username,
+                phone: phone || null
+            },
+            select: {
+                id: true,
+                name: true,
+                username: true,
+                phone: true,
+                status: true,
+                createdAt: true
+            }
+        });
+
+        res.json(updatedOperator);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // PUT /api/operators/:id/password - Reset operator password
 router.put('/:id/password', authenticate, adminOnly, async (req: any, res: any) => {
     try {
@@ -136,6 +175,16 @@ router.delete('/:id', authenticate, adminOnly, async (req: any, res: any) => {
             where: { assignedTo: operatorId },
             data: { assignedTo: null }
         });
+
+        // Delete related logs
+        await prisma.activityLog.deleteMany({ where: { userId: operatorId } });
+        await prisma.callLog.deleteMany({ where: { operatorId } });
+        await prisma.comment.deleteMany({ where: { operatorId } });
+        await prisma.leadDelay.deleteMany({ where: { operatorId } });
+        await prisma.task.deleteMany({ where: { assignedTo: operatorId } });
+        await prisma.task.deleteMany({ where: { assignedBy: operatorId } });
+        await prisma.supportTicket.deleteMany({ where: { operatorId } });
+        await prisma.announcement.deleteMany({ where: { authorId: operatorId } });
 
         await prisma.user.delete({
             where: { id: operatorId }

@@ -421,17 +421,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
     }
   };
 
-  const handleAddDelay = async () => {
-    try {
-      await api.post(`/leads/${selectedLead.id}/delay`, { delayMinutes, reason: 'Operator kechiktirdi' });
-      const updated = await api.get('/leads');
-      setLeads(updated.data);
-      const newSelected = updated.data.find((l: any) => l.id === selectedLead.id);
-      if(newSelected) setSelectedLead(newSelected);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  // handleAddDelay removed as it was unused and caused TS errors
 
   const handleUpdateStatus = async (status?: string, quality?: string, nextCallAt?: string, region?: string, grade?: string, targetLeadId?: number, isDuplicate?: boolean) => {
     const leadId = targetLeadId || selectedLead?.id;
@@ -511,6 +501,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
               <th className="py-3 px-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">Status</th>
               <th className="py-3 px-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">Keyingi aloqa</th>
               <th className="py-3 px-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">Delay</th>
+              <th className="py-3 px-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">Natija</th>
               <th className="py-3 px-4 font-semibold text-xs text-gray-500 uppercase tracking-wider">Amal</th>
             </tr>
           </thead>
@@ -551,6 +542,13 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                     {lead.nextCallAt ? new Date(lead.nextCallAt).toLocaleString('uz-UZ', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : '-'}
                 </td>
                 <td className="py-3 px-4 text-sm text-red-500 font-bold">{lead.delayCount > 0 ? lead.delayCount : '-'}</td>
+                <td className="py-3 px-4">
+                  {lead.score !== null && lead.maxScore !== null ? (
+                    <span className="font-bold text-[#008F4C] bg-green-50 px-2 py-1 rounded text-xs border border-green-200 whitespace-nowrap">
+                      🎯 {lead.score} / {lead.maxScore}
+                    </span>
+                  ) : <span className="text-gray-400">-</span>}
+                </td>
                 <td className="py-3 px-4 text-sm flex gap-2" onClick={(e) => e.stopPropagation()}>
                     <button onClick={() => setSelectedLead(lead)} title="Qo'ng'iroq" className="text-[#008F4C] hover:text-[#005B35]"><Phone size={16} /></button>
                     <button onClick={(e) => handleDeleteLeadClick(e, lead)} title="Lidni o'chirish" className="text-gray-400 hover:text-red-600"><Trash2 size={16} /></button>
@@ -643,6 +641,11 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 <div className="text-sm text-gray-600 mb-2 font-medium">{lead.phone}</div>
                 {lead.region && <div className="inline-block bg-gray-100 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded mb-3">{lead.region}</div>}
                 {lead.grade && <div className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2 py-0.5 rounded mb-3 ml-1.5">🎓 {lead.grade}</div>}
+                {lead.score !== null && lead.maxScore !== null && (
+                  <div className="inline-block bg-blue-50 text-blue-700 text-[10px] font-extrabold px-2 py-0.5 rounded mb-3 ml-1.5 border border-blue-200">
+                    🎯 {lead.score} / {lead.maxScore}
+                  </div>
+                )}
                 
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-gray-500 flex items-center gap-1">👤 {lead.operator?.name || 'Biriktirilmagan'}</span>

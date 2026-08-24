@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Megaphone, MessageSquare, Shield, Bell, Send, CheckCircle2, Clock, Plus, Trash2, Key, UserCheck, AlertCircle, Download, Search, Save, Zap } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import api from '../api';
 
 const Settings = () => {
+  const { t } = useTranslation();
   const getUserFromStorage = () => {
     try {
       const userStr = localStorage.getItem('user');
@@ -61,6 +63,9 @@ const Settings = () => {
     fetchTelegramSettings();
   }, []);
 
+  const [botUsers, setBotUsers] = useState<any[]>([]);
+  const [botUsersLoading, setBotUsersLoading] = useState(false);
+
   const fetchTelegramSettings = async () => {
     try {
       const res = await api.get('/telegram/settings');
@@ -68,8 +73,16 @@ const Settings = () => {
         setTelegramToken(res.data.token || '');
         setTelegramChatIds(res.data.chatIds || []);
       }
+      
+      setBotUsersLoading(true);
+      const userRes = await api.get('/telegram/bot-users');
+      if (userRes.data) {
+        setBotUsers(userRes.data);
+      }
     } catch (err) {
-      console.error('Fetch telegram settings error', err);
+      console.error('Fetch telegram settings/users error', err);
+    } finally {
+      setBotUsersLoading(false);
     }
   };
 
@@ -146,6 +159,25 @@ const Settings = () => {
       setTelegramMsg({ text: err.response?.data?.error || "Hisobot yuborishda xatolik", error: true });
     } finally {
       setTelegramReportLoading(false);
+    }
+  };
+
+  const handleToggleApproveBotUser = async (chatId: string, currentStatus: boolean) => {
+    try {
+      await api.post(`/telegram/bot-users/${chatId}/approve`, { isApproved: !currentStatus });
+      fetchTelegramSettings();
+    } catch (err) {
+      alert("Xatolik yuz berdi");
+    }
+  };
+
+  const handleDeleteBotUser = async (chatId: string) => {
+    if (!confirm("Ushbu foydalanuvchini botdan o'chirmoqchimisiz?")) return;
+    try {
+      await api.delete(`/telegram/bot-users/${chatId}`);
+      fetchTelegramSettings();
+    } catch (err) {
+      alert("Xatolik yuz berdi");
     }
   };
 
@@ -241,8 +273,8 @@ const Settings = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
-          <h1 className="text-2xl font-bold text-[#173127]">E'lonlar, Murojaatlar & Sozlamalar</h1>
-          <p className="text-sm text-gray-500 mt-1">O'quv markazi e'lonlari, adminga murojaat va profil sozlamalari boshqaruvi</p>
+          <h1 className="text-2xl font-bold text-[#173127]">{t('settings.titles.announcements')}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t('settings.titles.announcements_sub')}</p>
         </div>
 
         {/* Action Buttons */}
@@ -280,7 +312,7 @@ const Settings = () => {
           }`}
         >
           <Megaphone size={18} />
-          <span>📢 E'lonlar & Yangiliklar</span>
+          <span>📢 {t('settings.tabs.announcements')}</span>
           {announcements.length > 0 && (
             <span className={`px-2 py-0.5 text-xs rounded-full ${activeTab === 'announcements' ? 'bg-amber-400 text-black font-bold' : 'bg-gray-200 text-gray-700'}`}>
               {announcements.length}
@@ -297,7 +329,7 @@ const Settings = () => {
           }`}
         >
           <MessageSquare size={18} />
-          <span>💬 Adminga Murojaatlar</span>
+          <span>💬 {t('settings.tabs.support')}</span>
           {tickets.filter(t => t.status === 'pending').length > 0 && (
             <span className="px-2 py-0.5 text-xs rounded-full bg-red-500 text-white font-bold animate-pulse">
               {tickets.filter(t => t.status === 'pending').length}
@@ -314,7 +346,7 @@ const Settings = () => {
           }`}
         >
           <Shield size={18} />
-          <span>⚙️ Profil Sozlamalari</span>
+          <span>⚙️ {t('settings.tabs.profile')}</span>
         </button>
 
         <button
@@ -326,7 +358,7 @@ const Settings = () => {
           }`}
         >
           <Send size={18} />
-          <span>🤖 Telegram Bot & Hisobotlar</span>
+          <span>🤖 {t('settings.tabs.telegram')}</span>
         </button>
       </div>
 
@@ -557,8 +589,8 @@ const Settings = () => {
               <Send size={28} />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-[#173127]">Telegram Bot Sozlamalari & Avto-Hisobot</h2>
-              <p className="text-xs text-gray-500">Har kuni soat 22:00 da Telegram orqali sifatli, sifatsiz va umumiy lidlar hisobotini yuborish</p>
+              <h2 className="text-lg font-bold text-[#173127]">{t('settings.titles.telegram')}</h2>
+              <p className="text-xs text-gray-500">{t('settings.titles.telegram_sub')}</p>
             </div>
           </div>
 
@@ -618,35 +650,9 @@ const Settings = () => {
                 )}
               </div>
 
-              {/* Add New Chat ID inputs */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newChatId}
-                  onChange={(e) => setNewChatId(e.target.value)}
-                  placeholder="Yangi Chat ID kiriting (-10012345...)"
-                  className="flex-1 p-3 border border-gray-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-[#173127] focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddChatId}
-                  className="bg-[#173127] hover:bg-[#12271f] text-white font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
-                >
-                  <Plus size={16} />
-                  <span>Qo'shish</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDetectChatId}
-                  disabled={telegramDetectLoading}
-                  className="bg-sky-600 hover:bg-sky-700 disabled:bg-gray-300 text-white font-bold px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm shrink-0"
-                >
-                  <Search size={14} />
-                  <span>{telegramDetectLoading ? 'Izlanmoqda...' : '🔍 Avto-Topish'}</span>
-                </button>
-              </div>
-              <p className="text-[11px] text-gray-400 mt-1">
-                2 ta, 3 ta yoki xohlagancha Chat ID (guruh va shaxsiy admin) qo'shishingiz mumkin. Bot barcha qo'shilgan chatlarga hisobot yuboradi.
+              {/* Manual ID Add is disabled. Users register via bot. */}
+              <p className="text-[11px] text-gray-500 mt-1">
+                Eslatma: Endi guruh id larini qo'lda kiritish o'chirilgan. Yangi foydalanuvchilar to'g'ridan-to'g'ri Telegram botga kirib /start bosishlari va o'z ismlari bilan ro'yxatdan o'tishlari kerak. Ularning ro'yxati quyida chiqadi.
               </p>
             </div>
 
@@ -713,10 +719,59 @@ const Settings = () => {
               </button>
             </div>
 
+            {/* Bot Users Management */}
+            <div className="pt-6 border-t border-gray-100 space-y-4">
+              <h3 className="text-sm font-bold text-[#173127] uppercase tracking-wider flex items-center gap-1.5">
+                <UserCheck size={16} className="text-emerald-500" />
+                <span>Bot Foydalanuvchilari (Tasdiqlash)</span>
+              </h3>
+              
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                {botUsersLoading ? (
+                  <div className="p-3 text-center text-sm text-gray-500">Yuklanmoqda...</div>
+                ) : botUsers.length === 0 ? (
+                  <div className="p-3 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-xs text-gray-400 italic text-center">
+                    Hali hech kim botdan ro'yxatdan o'tmagan
+                  </div>
+                ) : (
+                  botUsers.map((u: any) => (
+                    <div key={u.chatId} className="flex items-center justify-between p-3 bg-white border border-gray-200 shadow-sm rounded-xl">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-sm text-gray-800">{u.name || 'Nomsiz'} <span className="text-xs text-gray-400 font-mono ml-2">({u.chatId})</span></span>
+                        <span className="text-xs text-gray-500 mt-0.5">Til: {u.language === 'ru' ? '🇷🇺 Ruscha' : '🇺🇿 O\'zbekcha'} | Qo'shilgan: {new Date(u.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleApproveBotUser(u.chatId, u.isApproved)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            u.isApproved ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                          }`}
+                        >
+                          {u.isApproved ? 'Tasdiqlangan ✅' : 'Kutilmoqda ⏳'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteBotUser(u.chatId)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
+                          title="Foydalanuvchini o'chirish"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Botga /start bosgan barcha odamlar shu yerda ko'rinadi. Ularni "Tasdiqlangan" holatiga o'tkazsangizgina kunlik hisobotlarni qabul qilishadi.
+              </p>
+            </div>
+
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 leading-relaxed font-medium flex items-start gap-2">
               <Clock size={16} className="text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <strong>Avto-Hisobot Qoidasi:</strong> Tizim har kuni kechqurun soat <strong>22:00 da</strong> avtomatik tarzda barcha sifatli lidlar, sifatsiz lidlar, 1-8 sinf taqsimoti va operatorlar faoliyati hisobotini tuzib, Telegram bot orqali ushbu Chat ID ga yuboradi.
+                <strong>Avto-Hisobot Qoidasi:</strong> Tizim har kuni kechqurun soat <strong>22:00 da</strong> avtomatik tarzda barcha sifatli lidlar, sifatsiz lidlar, 1-8 sinf taqsimoti va operatorlar faoliyati hisobotini tuzib, Telegram bot orqali tasdiqlangan foydalanuvchilarga yuboradi.
               </div>
             </div>
           </div>

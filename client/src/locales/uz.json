@@ -1,0 +1,76 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "crm": "CRM (Lidlar)",
+    "operators": "Operatorlar",
+    "settings": "Sozlamalar",
+    "logout": "Chiqish",
+    "calls": "Qo'ng'iroqlar",
+    "tasks": "Vazifalar",
+    "reports": "Hisobotlar"
+  },
+  "header": {
+    "search": "Qidirish...",
+    "language": "Til"
+  },
+  "dashboard": {
+    "title": "Dashboard - Asosiy Ko'rsatkichlar",
+    "welcome": "Xush kelibsiz, {{name}}!",
+    "total_leads": "Jami Lidlar",
+    "active_leads": "Faol Lidlar",
+    "total_calls": "Jami Qo'ng'iroqlar",
+    "answered_calls": "Bog'lanilganlar",
+    "daily_calls": "Bugungi Qo'ng'iroqlar",
+    "success_rate": "Ulanish Foizi",
+    "grades_distribution": "Sinflar bo'yicha taqsimot",
+    "quality_distribution": "Lidlar Sifati",
+    "loading": "Yuklanmoqda..."
+  },
+  "crm": {
+    "title": "CRM Tizimi (Lidlar)",
+    "add_lead": "Yangi Lid Qo'shish",
+    "import_excel": "Excel Yuklash",
+    "round_robin": "Round-Robin Taqsimlash",
+    "search_placeholder": "Ism yoki telefon raqami...",
+    "filters": {
+      "all": "Barchasi",
+      "new": "Yangi",
+      "calling": "Qo'ng'iroq qilinmoqda",
+      "meeting": "Uchrashuv belgilandi",
+      "success": "Muvaffaqiyatli",
+      "cancelled": "Bekor qilingan"
+    },
+    "table": {
+      "name": "ISMI",
+      "phone": "TELEFON",
+      "grade": "SINF",
+      "source": "MANBA",
+      "quality": "SIFATI",
+      "operator": "OPERATOR",
+      "status": "HOLATI",
+      "actions": "AMALLAR"
+    }
+  },
+  "common": {
+    "save": "Saqlash",
+    "cancel": "Bekor qilish",
+    "delete": "O'chirish",
+    "edit": "Tahrirlash",
+    "yes": "Ha",
+    "no": "Yo'q"
+  },
+  "settings": {
+    "tabs": {
+      "announcements": "E'lonlar & Yangiliklar",
+      "support": "Adminga Murojaatlar",
+      "profile": "Profil Sozlamalari",
+      "telegram": "Telegram Bot & Hisobotlar"
+    },
+    "titles": {
+      "announcements": "E'lonlar, Murojaatlar & Sozlamalar",
+      "announcements_sub": "O'quv markazi e'lonlari, adminga murojaat va profil sozlamalari boshqaruvi",
+      "telegram": "Telegram Bot Sozlamalari & Avto-Hisobot",
+      "telegram_sub": "Har kuni soat 22:00 da Telegram orqali sifatli, sifatsiz va umumiy lidlar hisobotini yuborish"
+    }
+  }
+}

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Users, UserPlus, PhoneCall, CheckCircle2, XCircle, AlertCircle, Clock, Timer } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import api from '../api';
 
 const Dashboard = () => {
+  const { t } = useTranslation();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -22,7 +24,7 @@ const Dashboard = () => {
   }, []);
 
   if (loading) {
-    return <div className="flex justify-center items-center h-full text-[#005B35]">Yuklanmoqda...</div>;
+    return <div className="flex justify-center items-center h-full text-[#005B35]">{t('dashboard.loading')}</div>;
   }
 
   // Format seconds to HH:mm:ss
@@ -35,13 +37,13 @@ const Dashboard = () => {
   };
 
   const statCards = [
-    { title: 'Jami lidlar', value: data?.stats?.totalLeads || 0, subtitle: 'Barchasi', icon: <Users size={16} />, color: 'text-gray-700', bg: 'bg-white' },
-    { title: 'Yangi lidlar', value: data?.stats?.newLeads || 0, subtitle: 'Bugun', icon: <UserPlus size={16} />, color: 'text-yellow-600', bg: 'bg-yellow-50' },
+    { title: t('dashboard.total_leads'), value: data?.stats?.totalLeads || 0, subtitle: t('crm.filters.all'), icon: <Users size={16} />, color: 'text-gray-700', bg: 'bg-white' },
+    { title: t('crm.filters.new') + ' Lidlar', value: data?.stats?.newLeads || 0, subtitle: 'Bugun', icon: <UserPlus size={16} />, color: 'text-yellow-600', bg: 'bg-yellow-50' }, // Todo: further translate
     { title: 'Kutayotgan lidlar', value: data?.stats?.waitingLeads || 0, subtitle: 'Hozirda', icon: <PhoneCall size={16} />, color: 'text-blue-600', bg: 'bg-blue-50' },
     { title: 'Sifatli lidlar', value: data?.stats?.qualityLeads || 0, subtitle: 'Jami', icon: <CheckCircle2 size={16} />, color: 'text-green-600', bg: 'bg-green-50' },
     { title: 'Sifatsiz lidlar', value: data?.stats?.badLeads || 0, subtitle: 'Jami', icon: <XCircle size={16} />, color: 'text-red-600', bg: 'bg-red-50' },
     { title: 'Vaqti o\'tgan lidlar', value: data?.stats?.overdueLeads || 0, subtitle: 'Ehtiyot bo\'ling', icon: <AlertCircle size={16} />, color: 'text-red-600', bg: 'bg-red-50' },
-    { title: 'Bugungi qo\'ng\'iroqlar', value: data?.stats?.callsToday || 0, subtitle: 'Bugun', icon: <PhoneCall size={16} />, color: 'text-green-600', bg: 'bg-green-50' },
+    { title: t('dashboard.daily_calls'), value: data?.stats?.callsToday || 0, subtitle: 'Bugun', icon: <PhoneCall size={16} />, color: 'text-green-600', bg: 'bg-green-50' },
     { title: 'Jami delay', value: data?.stats?.totalDelays || 0, subtitle: 'Jami', icon: <Clock size={16} />, color: 'text-green-600', bg: 'bg-green-50' },
     { title: 'Bugungi gaplashuv vaqti', value: formatTime(data?.stats?.todayCallDuration), subtitle: 'Bugun', icon: <Timer size={16} />, color: 'text-blue-600', bg: 'bg-blue-50' },
   ];
@@ -76,8 +78,8 @@ const Dashboard = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-y border-gray-200">
-                  <th className="py-2 px-3 font-semibold text-xs text-gray-600">Operator</th>
-                  <th className="py-2 px-3 font-semibold text-xs text-gray-600">Status</th>
+                  <th className="py-2 px-3 font-semibold text-xs text-gray-600">{t('crm.table.operator')}</th>
+                  <th className="py-2 px-3 font-semibold text-xs text-gray-600">{t('crm.table.status')}</th>
                   <th className="py-2 px-3 font-semibold text-xs text-gray-600 text-center">Lidlar</th>
                   <th className="py-2 px-3 font-semibold text-xs text-gray-600 text-center">Qo'ng'iroqlar</th>
                   <th className="py-2 px-3 font-semibold text-xs text-gray-600 text-center">Oldi</th>
@@ -86,7 +88,7 @@ const Dashboard = () => {
                   <th className="py-2 px-3 font-semibold text-xs text-gray-600 text-center">Overdue</th>
                   <th className="py-2 px-3 font-semibold text-xs text-gray-600 text-center">Gaplashuv vaqti</th>
                   <th className="py-2 px-3 font-semibold text-xs text-gray-600 text-center">Konversiya</th>
-                  <th className="py-2 px-3 font-semibold text-xs text-gray-600 text-center">Amal</th>
+                  <th className="py-2 px-3 font-semibold text-xs text-gray-600 text-center">{t('crm.table.actions')}</th>
                 </tr>
               </thead>
               <tbody>

@@ -1,0 +1,76 @@
+{
+  "sidebar": {
+    "dashboard": "Дашборд",
+    "crm": "CRM (Лиды)",
+    "operators": "Операторы",
+    "settings": "Настройки",
+    "logout": "Выйти",
+    "calls": "Звонки",
+    "tasks": "Задачи",
+    "reports": "Отчеты"
+  },
+  "header": {
+    "search": "Поиск...",
+    "language": "Язык"
+  },
+  "dashboard": {
+    "title": "Дашборд - Основные показатели",
+    "welcome": "Добро пожаловать, {{name}}!",
+    "total_leads": "Всего Лидов",
+    "active_leads": "Активные Лиды",
+    "total_calls": "Всего Звонков",
+    "answered_calls": "Отвеченные",
+    "daily_calls": "Звонки за сегодня",
+    "success_rate": "Процент Успеха",
+    "grades_distribution": "Распределение по классам",
+    "quality_distribution": "Качество Лидов",
+    "loading": "Загрузка..."
+  },
+  "crm": {
+    "title": "CRM Система (Лиды)",
+    "add_lead": "Добавить Лид",
+    "import_excel": "Загрузить Excel",
+    "round_robin": "Round-Robin Распределение",
+    "search_placeholder": "Имя или телефон...",
+    "filters": {
+      "all": "Все",
+      "new": "Новые",
+      "calling": "Идет звонок",
+      "meeting": "Назначена встреча",
+      "success": "Успешно",
+      "cancelled": "Отменено"
+    },
+    "table": {
+      "name": "ИМЯ",
+      "phone": "ТЕЛЕФОН",
+      "grade": "КЛАСС",
+      "source": "ИСТОЧНИК",
+      "quality": "КАЧЕСТВО",
+      "operator": "ОПЕРАТОР",
+      "status": "СТАТУС",
+      "actions": "ДЕЙСТВИЯ"
+    }
+  },
+  "common": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "yes": "Да",
+    "no": "Нет"
+  },
+  "settings": {
+    "tabs": {
+      "announcements": "Объявления и Новости",
+      "support": "Обращения к админу",
+      "profile": "Настройки профиля",
+      "telegram": "Telegram Бот и Отчеты"
+    },
+    "titles": {
+      "announcements": "Объявления, Обращения и Настройки",
+      "announcements_sub": "Управление объявлениями, обращениями и настройками",
+      "telegram": "Настройки Telegram Бота и Авто-Отчеты",
+      "telegram_sub": "Ежедневная отправка отчетов в 22:00 через Telegram"
+    }
+  }
+}
