@@ -705,7 +705,7 @@ const Settings = () => {
 
               <button
                 type="button"
-                onClick={() => window.open('http://localhost:3000/api/telegram/download-report', '_blank')}
+                onClick={() => window.open((import.meta.env.MODE === 'development' ? 'http://localhost:3000' : '') + '/api/telegram/download-report', '_blank')}
                 className="p-4 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-xl text-left transition text-emerald-900 font-bold text-sm flex items-center justify-between"
               >
                 <div>
