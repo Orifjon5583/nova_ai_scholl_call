@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, PhoneCall, CheckSquare, BarChart3, Settings, LogOut, ChevronDown, ChevronRight, UserCog, Bell, Search, Menu, Globe } from 'lucide-react';
+import { LayoutDashboard, Users, PhoneCall, CheckSquare, BarChart3, Settings, LogOut, ChevronDown, ChevronRight, UserCog, Bell, Search, Menu } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import api from '../api';
 
@@ -152,10 +152,6 @@ const DashboardLayout = () => {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const toggleLanguage = () => {
-    const nextLang = i18n.language === 'uz' ? 'ru' : 'uz';
-    i18n.changeLanguage(nextLang);
-  };
 
   return (
     <div className="flex h-screen bg-[#F5F7F5] overflow-hidden">
@@ -292,15 +288,6 @@ const DashboardLayout = () => {
           </div>
           <div className="flex items-center gap-6">
             
-            {/* Language Switcher */}
-            <button 
-              onClick={toggleLanguage}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-sm font-semibold text-gray-700"
-            >
-              <Globe size={16} className="text-[#005B35]" />
-              {i18n.language === 'ru' ? 'RU' : 'UZ'}
-            </button>
-
             {/* Search */}
             <div className="relative hidden md:block">
               <input 

@@ -105,13 +105,16 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          if (!parsed.includes('Shartnoma') || !parsed.includes('Yoqdi')) {
+             return ['Yangi', 'Yoqdi', 'Qayta qo\'ng\'iroq', 'Shartnoma', 'Sifatsiz'];
+          }
           return parsed.filter((c: string) => c !== 'Aloqa bo\'ldi');
         }
       }
     } catch (e) {
       console.error('Failed to load columns from localStorage', e);
     }
-    return ['Yangi', 'Kutilmoqda', 'Qayta qo\'ng\'iroq'];
+    return ['Yangi', 'Yoqdi', 'Qayta qo\'ng\'iroq', 'Shartnoma', 'Sifatsiz'];
   });
   const [newColumnName, setNewColumnName] = useState('');
   const [isAddingColumn, setIsAddingColumn] = useState(false);
@@ -1108,44 +1111,66 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
             {activeTab === 'timeline' && (
                 <div className="relative pl-10 border-l-2 border-gray-200 space-y-8">
                 
-                {selectedLead.callLogs?.map((log: any) => (
-                    <div key={`call-${log.id}`} className="relative">
-                        <div className="absolute -left-[51px] top-1 bg-white border-2 border-[#10A957] text-[#10A957] w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-sm">
-                            <Phone size={18} />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-3 mb-2">
-                                <span className="text-sm font-bold text-gray-400 w-12">{new Date(log.createdAt).toLocaleTimeString('uz-UZ', {hour: '2-digit', minute: '2-digit'})}</span>
-                                <span className="font-bold text-[#173127] text-base">Operator (Siz)</span>
-                            </div>
-                            <div className="ml-16 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm w-full">
-                                <p className="text-base font-bold text-gray-800 mb-2">Qo'ng'iroq qilindi</p>
-                                <p className="text-[15px] text-gray-500 font-medium">Davomiyligi: <span className="text-[#008F4C] bg-green-50 px-2 py-0.5 rounded-md font-bold">{formatTime(log.durationSeconds)}</span></p>
-                            </div>
-                        </div>
-                    </div>
-                ))}
+                {(() => {
+                  const combined = [
+                    ...(selectedLead.callLogs || []).map((l: any) => ({ ...l, type: 'call' })),
+                    ...(selectedLead.comments || []).map((c: any) => ({ ...c, type: 'comment' }))
+                  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-                {selectedLead.comments?.map((comment: any) => (
-                    <div key={`cmt-${comment.id}`} className="relative">
-                    <div className="absolute -left-[51px] top-1 bg-white border-2 border-[#F4C400] text-[#F4C400] w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-sm">
-                        <MessageSquare size={18} />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <span className="text-sm font-bold text-gray-400 w-12">{new Date(comment.createdAt).toLocaleTimeString('uz-UZ', {hour: '2-digit', minute: '2-digit'})}</span>
-                            <span className="font-bold text-[#173127] text-base">{comment.operator?.name || 'Operator'}</span>
+                  if (combined.length === 0) {
+                    return <p className="text-base text-gray-400 ml-6 font-medium">Tarix bo'sh. Hali hech qanday amal bajarilmagan.</p>;
+                  }
+
+                  return combined.map((item: any) => {
+                    const itemDate = new Date(item.createdAt);
+                    const today = new Date();
+                    const yesterday = new Date();
+                    yesterday.setDate(yesterday.getDate() - 1);
+                    
+                    let dateText = itemDate.toLocaleDateString('uz-UZ');
+                    if (itemDate.toLocaleDateString('uz-UZ') === today.toLocaleDateString('uz-UZ')) dateText = 'Bugun';
+                    else if (itemDate.toLocaleDateString('uz-UZ') === yesterday.toLocaleDateString('uz-UZ')) dateText = 'Kecha';
+
+                    const timeText = itemDate.toLocaleTimeString('uz-UZ', {hour: '2-digit', minute: '2-digit'});
+                    
+                    if (item.type === 'call') {
+                      return (
+                        <div key={`call-${item.id}`} className="relative">
+                            <div className="absolute -left-[51px] top-1 bg-white border-2 border-[#10A957] text-[#10A957] w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-sm">
+                                <Phone size={18} />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-sm font-bold text-gray-400 w-auto">{dateText}, {timeText}</span>
+                                    <span className="font-bold text-[#173127] text-base">Operator (Siz)</span>
+                                </div>
+                                <div className="ml-16 bg-white p-5 rounded-2xl border border-gray-100 shadow-sm w-full">
+                                    <p className="text-base font-bold text-gray-800 mb-2">Qo'ng'iroq qilindi</p>
+                                    <p className="text-[15px] text-gray-500 font-medium">Davomiyligi: <span className="text-[#008F4C] bg-green-50 px-2 py-0.5 rounded-md font-bold">{formatTime(item.durationSeconds)}</span></p>
+                                </div>
+                            </div>
                         </div>
-                        <div className="ml-16 bg-[#FFFDF5] p-5 rounded-2xl border border-[#F4C400]/40 shadow-sm w-full">
-                            <p className="text-base text-gray-800 leading-relaxed font-medium">{comment.comment}</p>
+                      );
+                    } else {
+                      return (
+                        <div key={`cmt-${item.id}`} className="relative">
+                          <div className="absolute -left-[51px] top-1 bg-white border-2 border-[#F4C400] text-[#F4C400] w-10 h-10 rounded-full flex items-center justify-center z-10 shadow-sm">
+                              <MessageSquare size={18} />
+                          </div>
+                          <div>
+                              <div className="flex items-center gap-3 mb-2">
+                                  <span className="text-sm font-bold text-gray-400 w-auto">{dateText}, {timeText}</span>
+                                  <span className="font-bold text-[#173127] text-base">{item.operator?.name || 'Operator'}</span>
+                              </div>
+                              <div className="ml-16 bg-[#FFFDF5] p-5 rounded-2xl border border-[#F4C400]/40 shadow-sm w-full">
+                                  <p className="text-base text-gray-800 leading-relaxed font-medium">{item.comment}</p>
+                              </div>
+                          </div>
                         </div>
-                    </div>
-                    </div>
-                ))}
-                
-                {(selectedLead.callLogs?.length === 0 && selectedLead.comments?.length === 0) && (
-                    <p className="text-base text-gray-400 ml-6 font-medium">Tarix bo'sh. Hali hech qanday amal bajarilmagan.</p>
-                )}
+                      );
+                    }
+                  });
+                })()}
                 </div>
             )}
             

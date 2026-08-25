@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Download, PieChart, Users, PhoneCall, Award, FileSpreadsheet, Send, FileText } from 'lucide-react';
+import { BarChart3, Download, PieChart, Users, PhoneCall, Award, FileSpreadsheet, Send } from 'lucide-react';
 import api from '../api';
 
 const Reports = () => {
@@ -72,9 +72,6 @@ const Reports = () => {
     }
   };
 
-  const handleDownloadTextReport = () => {
-    window.open('http://localhost:3000/api/telegram/download-report', '_blank');
-  };
 
   return (
     <div className="p-8 h-full flex flex-col">
@@ -85,32 +82,6 @@ const Reports = () => {
           <p className="text-gray-500 text-sm mt-1">Lidlar statistikasi, operatorlar samaradorligi va ma'lumotlarni eksport qilish</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleDownloadTextReport}
-            title="Kunlik hisobot faylini yuklab olish"
-            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl font-bold transition flex items-center gap-2 text-xs shadow-sm border border-gray-200"
-          >
-            <FileText size={16} />
-            <span>Hisobot Fayli (.txt)</span>
-          </button>
-          
-          <button
-            onClick={handleSendTelegramReport}
-            disabled={telegramLoading}
-            title="Telegram Botga hisobot yuborish"
-            className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2.5 rounded-xl font-bold transition flex items-center gap-2 text-xs shadow-sm"
-          >
-            <Send size={16} />
-            <span>{telegramLoading ? "Yuborilmoqda..." : "Telegram Botga Yuborish"}</span>
-          </button>
-
-          <button
-            onClick={handleExportCSV}
-            className="bg-[#008F4C] hover:bg-[#007041] text-white px-5 py-2.5 rounded-xl font-bold transition shadow-sm flex items-center gap-2 text-xs"
-          >
-            <FileSpreadsheet size={16} />
-            <span>Excel (CSV) Yuklab Olish</span>
-          </button>
         </div>
       </div>
 
