@@ -7,7 +7,7 @@ module.exports = {
       cwd: "./server",
       env: {
         NODE_ENV: "production",
-        PORT: 3050, // O'zgartirishingiz mumkin, boshqa loyihalarga xalaqit bermaydi
+        PORT: 3000,
       }
     }
   ]

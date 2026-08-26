@@ -13,8 +13,15 @@ import { authenticate } from './middleware/auth';
 
 const app = express();
 
+const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? [
+        'https://crm.call.nova-maktab.uz',
+        'https://call.nova-maktab.uz',
+      ]
+    : ['http://localhost:5173'];
+
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true
 }));
 app.use(express.json());
@@ -39,7 +46,8 @@ app.post('/api/login', async (req, res) => {
             data: { userId: user.id, action: 'Tizimga kirdi' }
         });
 
-        res.cookie('token', token, { httpOnly: true, secure: false, maxAge: 12 * 60 * 60 * 1000 });
+        const isProduction = process.env.NODE_ENV === 'production';
+        res.cookie('token', token, { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax', maxAge: 12 * 60 * 60 * 1000 });
         res.json({ message: 'Success', user: { id: user.id, name: user.name, role: user.role } });
     } catch (error) {
         console.error(error);
