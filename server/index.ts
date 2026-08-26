@@ -133,7 +133,7 @@ import path from 'path';
 if (process.env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '../client/dist');
     app.use(express.static(frontendPath));
-    app.get('*', (req, res) => {
+    app.get('/{*path}', (req, res) => {
         // Exclude API routes from serving index.html
         if (!req.path.startsWith('/api')) {
             res.sendFile(path.join(frontendPath, 'index.html'));
