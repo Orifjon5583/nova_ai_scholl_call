@@ -101,12 +101,12 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   // Dynamic Kanban Columns (Persisted in localStorage)
   const [columns, setColumns] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('nova_crm_kanban_columns');
+      const saved = localStorage.getItem('nova_crm_kanban_columns_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          if (!parsed.includes('Shartnoma') || !parsed.includes('Yoqdi')) {
-             return ['Yangi', 'Yoqdi', 'Qayta qo\'ng\'iroq', 'Shartnoma', 'Sifatsiz'];
+          if (!parsed.includes('Shartnoma') || !parsed.includes('Sifatli') || !parsed.includes('Bog\'lanib bo\'lmadi') || !parsed.includes('Qayta aloqa')) {
+             return ['Yangi', 'Qayta aloqa', 'Bog\'lanib bo\'lmadi', 'Sifatli', 'Shartnoma', 'Sifatsiz'];
           }
           return parsed.filter((c: string) => c !== 'Aloqa bo\'ldi');
         }
@@ -114,7 +114,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
     } catch (e) {
       console.error('Failed to load columns from localStorage', e);
     }
-    return ['Yangi', 'Yoqdi', 'Qayta qo\'ng\'iroq', 'Shartnoma', 'Sifatsiz'];
+    return ['Yangi', 'Qayta aloqa', 'Bog\'lanib bo\'lmadi', 'Sifatli', 'Shartnoma', 'Sifatsiz'];
   });
   const [newColumnName, setNewColumnName] = useState('');
   const [isAddingColumn, setIsAddingColumn] = useState(false);
@@ -122,7 +122,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
   // Sync columns with localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('nova_crm_kanban_columns', JSON.stringify(columns));
+      localStorage.setItem('nova_crm_kanban_columns_v2', JSON.stringify(columns));
     } catch (e) {
       console.error('Failed to save columns to localStorage', e);
     }
@@ -130,6 +130,7 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
 
   // Detail Tabs
   const [activeTab, setActiveTab] = useState<'timeline' | 'calls' | 'comments' | 'info'>('timeline');
+  const [activeCallComment, setActiveCallComment] = useState('');
 
   // Timer state
   const [isCalling, setIsCalling] = useState(false);
@@ -367,18 +368,49 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
 
   const handleCallToggle = async () => {
     if (isCalling) {
+      if (selectedLead.status === 'Yangi') {
+          alert("Iltimos, statusni (yacheykani) 'Yangi' dan boshqasiga o'tkazing!");
+          return;
+      }
+      if (!activeCallComment.trim()) {
+          alert("Iltimos, qo'ng'iroq uchun izoh yozing!");
+          return;
+      }
+      if (selectedLead.status === 'Qayta aloqa' && !selectedLead.nextCallAt) {
+          alert("Iltimos, Qayta aloqa uchun deadline (Keyingi aloqa) vaqtini belgilang!");
+          return;
+      }
+
       clearInterval(callTimer);
       setIsCalling(false);
       
-      // Initialize the post call form with current lead data
-      setPostCallForm({
-        comment: '',
-        status: selectedLead.status,
-        quality: selectedLead.quality || 'Noma\'lum',
-        nextCallAt: selectedLead.nextCallAt ? new Date(new Date(selectedLead.nextCallAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''
-      });
-      setShowPostCallModal(true);
+      try {
+          await api.post(`/leads/${selectedLead.id}/call`, {
+              durationSeconds: callDuration,
+              result: 'Oldi',
+              comment: activeCallComment,
+              status: selectedLead.status,
+              quality: selectedLead.quality || 'Noma\'lum',
+              nextCallAt: selectedLead.nextCallAt || null
+          });
+          
+          setActiveCallComment('');
+          setCallDuration(0);
+          fetchLeads();
+          
+          let url = '/leads?sortBy=' + sortBy;
+          if (selectedRegions.length > 0) {
+              url += '&regions=' + selectedRegions.join(',');
+          }
+          const updated = await api.get(url);
+          setLeads(updated.data);
+          const newSelected = updated.data.find((l: any) => l.id === selectedLead.id);
+          if(newSelected) setSelectedLead(newSelected);
+      } catch (e) {
+          console.error(e);
+      }
     } else {
+      setActiveCallComment('');
       setIsCalling(true);
       setCallDuration(0);
       const interval = setInterval(() => {
@@ -960,8 +992,12 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
               </div>
               <div>
                 <h3 className="font-bold text-2xl text-[#173127] leading-tight mb-1.5">{selectedLead.name}</h3>
-                <p className="text-base text-gray-500 font-medium">{selectedLead.phone}</p>
-                <p className="text-sm text-gray-400 mt-1 flex items-center gap-1">Lid manbasi: <span className="text-gray-600 font-bold">{selectedLead.source || 'Instagram'}</span></p>
+                {isCalling ? (
+                    <p className="text-lg font-black text-red-600 bg-red-50 px-3 py-1.5 rounded-lg inline-block border border-red-100">{selectedLead.phone}</p>
+                ) : (
+                    <p className="text-sm text-gray-400 italic">Telefon raqamni ko'rish uchun Qo'ng'iroq qilish tugmasini bosing</p>
+                )}
+                <p className="text-sm text-gray-400 mt-2 flex items-center gap-1">Lid manbasi: <span className="text-gray-600 font-bold">{selectedLead.source || 'Instagram'}</span></p>
               </div>
             </div>
             <div className="flex items-center gap-2 absolute top-6 right-6">
@@ -997,32 +1033,12 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                 </button>
              </div>
             
-             <div className="flex flex-col gap-1 mt-1">
-                 <div className="flex items-center gap-3">
-                     <div className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 focus-within:ring-2 focus-within:ring-[#F4C400] shadow-sm">
-                        <Clock size={20} className="text-[#F4C400]" />
-                        <input 
-                            type="date" 
-                            value={selectedLead.nextCallAt ? new Date(new Date(selectedLead.nextCallAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : ''}
-                            onChange={e => handleUpdateStatus(undefined, undefined, e.target.value)}
-                            className="w-full text-[15px] font-bold text-gray-700 focus:outline-none"
-                        />
-                     </div>
-                     <span className="text-xs uppercase text-gray-500 w-24 text-center leading-tight font-bold">Keyingi aloqa (Deadline)</span>
-                 </div>
-                 {selectedLead.nextCallAt && (
-                    <button
-                      onClick={() => handleUpdateStatus(undefined, undefined, null as any)}
-                      className="text-xs text-red-600 font-bold hover:underline self-start ml-2 mt-1"
-                    >
-                      ✕ Deadlineni o'chirish / olib tashlash
-                    </button>
-                 )}
-              </div>
+
           </div>
 
-          {/* Details Table */}
-          <div className="px-8 py-6 grid grid-cols-2 gap-y-6 gap-x-6 border-b border-gray-100 bg-white">
+          {/* Details Table - Only visible during Call */}
+          {isCalling && (
+            <div className="px-8 py-6 grid grid-cols-2 gap-y-6 gap-x-6 border-b border-gray-100 bg-red-50/30">
               <div>
                   <p className="text-gray-400 text-xs uppercase font-bold mb-2">Status (Yacheyka)</p>
                   <select 
@@ -1078,19 +1094,53 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                       {selectedLead.operator?.name || 'Biriktirilmagan'}
                   </p>
               </div>
-              <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                  <p className="text-gray-400 text-[10px] uppercase font-bold mb-1">Keyingi aloqa (Deadline)</p>
-                  <p className="font-bold text-red-500 text-[15px]">{selectedLead.nextCallAt ? new Date(selectedLead.nextCallAt).toLocaleString('uz-UZ') : 'Belgilanmagan'}</p>
+
+              <div className="col-span-2">
+                  <p className="text-gray-400 text-xs uppercase font-bold mb-2">Izoh (Majburiy)</p>
+                  <textarea 
+                      value={activeCallComment}
+                      onChange={e => setActiveCallComment(e.target.value)}
+                      className="w-full bg-gray-50 font-medium px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#008F4C] transition"
+                      placeholder="Mijoz nima dedi? Xulosa..."
+                      rows={3}
+                  />
               </div>
-              <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                  <p className="text-gray-400 text-[10px] uppercase font-bold mb-1">Oxirgi marta gaplashilgan</p>
-                  <p className="font-bold text-gray-800 text-[15px]">{selectedLead.lastCallAt ? new Date(selectedLead.lastCallAt).toLocaleString('uz-UZ') : 'Gaplashilmagan'}</p>
+              
+              <div className="col-span-2 sm:col-span-1">
+                  <div className="flex items-center gap-3">
+                     <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3 focus-within:ring-2 focus-within:ring-[#F4C400] shadow-sm">
+                        <Clock size={20} className="text-[#F4C400]" />
+                        <input 
+                            type="date" 
+                            value={selectedLead.nextCallAt ? new Date(new Date(selectedLead.nextCallAt).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10) : ''}
+                            onChange={e => handleUpdateStatus(undefined, undefined, e.target.value)}
+                            className="w-full text-[15px] bg-transparent font-bold text-gray-700 focus:outline-none"
+                        />
+                     </div>
+                 </div>
+                 <span className="text-xs uppercase text-gray-500 w-full text-left leading-tight font-bold mt-2 block">Keyingi aloqa (Deadline)</span>
+                 {selectedLead.nextCallAt && (
+                    <button
+                      onClick={() => handleUpdateStatus(undefined, undefined, null as any)}
+                      className="text-xs text-red-600 font-bold hover:underline self-start mt-1 block"
+                    >
+                      ✕ Deadlineni o'chirish / olib tashlash
+                    </button>
+                 )}
               </div>
-              <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                  <p className="text-gray-400 text-[10px] uppercase font-bold mb-1">Yaratilgan sana</p>
-                  <p className="font-bold text-gray-800 text-[15px]">{new Date(selectedLead.createdAt).toLocaleDateString('uz-UZ')}</p>
+
+              <div className="col-span-2 sm:col-span-1 flex flex-col gap-4">
+                  <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex-1">
+                      <p className="text-gray-400 text-[10px] uppercase font-bold mb-1">Oxirgi marta gaplashilgan</p>
+                      <p className="font-bold text-gray-800 text-[15px]">{selectedLead.lastCallAt ? new Date(selectedLead.lastCallAt).toLocaleString('uz-UZ') : 'Gaplashilmagan'}</p>
+                  </div>
+                  <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex-1">
+                      <p className="text-gray-400 text-[10px] uppercase font-bold mb-1">Yaratilgan sana</p>
+                      <p className="font-bold text-gray-800 text-[15px]">{new Date(selectedLead.createdAt).toLocaleDateString('uz-UZ')}</p>
+                  </div>
               </div>
           </div>
+          )}
 
           {/* Tabs */}
           <div className="flex border-b border-gray-200 px-8 pt-4 bg-white sticky top-0 z-20">

@@ -601,7 +601,7 @@ const Settings = () => {
             </div>
           )}
 
-          <form onSubmit={handleSaveTelegramSettings} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); handleSaveTelegramSettings(); }} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
                 Telegram Bot Token <span className="text-red-500">*</span>
