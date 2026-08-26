@@ -123,7 +123,7 @@ import path from 'path';
 
 // Serve React static files in production
 if (process.env.NODE_ENV === 'production') {
-    const frontendPath = path.join(__dirname, '../../client/dist');
+    const frontendPath = path.join(__dirname, '../client/dist');
     app.use(express.static(frontendPath));
     app.get('*', (req, res) => {
         // Exclude API routes from serving index.html
