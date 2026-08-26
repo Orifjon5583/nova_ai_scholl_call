@@ -115,7 +115,7 @@ export const generateDailyReportText = async (language: string = 'uz') => {
     msg += `━━━━━━━━━━━━━━━━━━\n\n`;
 
     msg += language === 'ru' ? `## 🎓 ПО КЛАССАМ\n\n` : `## 🎓 SINF BO‘YICHA\n\n`;
-    const emojis = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣'];
+    const emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣'];
     schoolGrades.forEach((g, idx) => {
         const val = gradeStats[g] || 0;
         const e = emojis[idx] || '🔹';
@@ -261,8 +261,8 @@ export const sendDailyReportToTelegram = async () => {
 
 // Scheduler for 22:00 daily
 export const initTelegramScheduler = () => {
-    // Schedule task at 22:00 (10:00 PM) every day
-    cron.schedule('0 22 * * *', async () => {
+    // Schedule task at 22:00 Uzbekistan time (UTC+5 = 17:00 UTC)
+    cron.schedule('0 17 * * *', async () => {
         console.log('Running daily 22:00 Telegram report task...');
         try {
             await sendDailyReportToTelegram();
