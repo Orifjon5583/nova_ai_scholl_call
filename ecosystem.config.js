@@ -5,7 +5,7 @@ module.exports = {
       script: "npm",
       args: "start",
       cwd: "./server",
-      env_production: {
+      env: {
         NODE_ENV: "production",
         PORT: 3050, // O'zgartirishingiz mumkin, boshqa loyihalarga xalaqit bermaydi
       }
