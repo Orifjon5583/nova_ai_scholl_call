@@ -693,6 +693,36 @@ router.post('/:id/restore', authenticate, async (req: any, res: any) => {
     }
 });
 
+// POST /api/leads/cleanup-low-scores - Past balli (score < 10 va 0/0) lidlarni tozalash (Admin)
+router.post('/cleanup-low-scores', authenticate, async (req: any, res: any) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ error: 'Faqat Admin uchun!' });
+        }
+
+        const result = await prisma.lead.updateMany({
+            where: {
+                deletedAt: null,
+                OR: [
+                    { score: { lt: 10 } },
+                    { score: 0, maxScore: 0 },
+                    { score: 0, maxScore: 1 }
+                ]
+            },
+            data: {
+                deletedAt: new Date(),
+                deletionReason: 'Past ball (Score < 10 yoki 0/0)',
+                deletedById: req.user.id
+            }
+        });
+
+        res.json({ message: `${result.count} ta past balli lid tozalandi`, count: result.count });
+    } catch (error) {
+        console.error('Cleanup low scores error', error);
+        res.status(500).json({ error: 'Past balli lidlarni tozalashda xatolik' });
+    }
+});
+
 // POST /api/leads/redistribute-round-robin - Biriktirilmagan lidlarni barcha faol operatorlarga teng bo'lish
 router.post('/redistribute-round-robin', authenticate, async (req: any, res: any) => {
     try {

@@ -285,6 +285,19 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
     }
   };
 
+  const handleCleanupLowScores = async () => {
+    if (!window.confirm("Bazada mavjud bo'lgan 10 balldan kam hamda 0/0 balli barcha lidlar tozalansinmi?")) {
+      return;
+    }
+    try {
+      const res = await api.post('/leads/cleanup-low-scores');
+      alert(res.data?.message || "Past balli lidlar tozalandi!");
+      fetchLeads();
+    } catch (err: any) {
+      alert(err.response?.data?.error || "Past balli lidlarni tozalashda xatolik yuz berdi");
+    }
+  };
+
   const xorazmRegions = ['Urganch', 'Xiva', 'Bog\'ot', 'Xonqa', 'Qo\'shko\'pir', 'Shovot', 'Gurlan', 'Yangibozor', 'Yangiariq', 'Hazorasp', 'Tuproqqal\'a', 'Boshqa'];
 
   // Update view state if prop changes
@@ -871,6 +884,13 @@ const CRM: React.FC<CRMProps> = ({ filter, isKanban }) => {
                     title="Biriktirilmagan lidlarni barcha faol operatorlarga teng bo'lish"
                 >
                   <RefreshCw size={16} /> Round-Robin Taqsimlash
+                </button>
+                <button 
+                    onClick={handleCleanupLowScores}
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-2 rounded-lg text-sm font-bold transition flex items-center gap-1.5 shadow-sm"
+                    title="Bazada mavjud 10 balldan kam va 0/0 balli lidlarni tozalash"
+                >
+                  <Trash2 size={16} /> Past ballarni tozalash
                 </button>
                 <button 
                     onClick={() => {

@@ -167,9 +167,23 @@ export const syncGoogleSheets = async () => {
                 }
             });
             addedCount++;
-        }
+        // Mavjud past balli (score < 10 yoki 0/0) lidlarni ham bazadan tozalash
+        const cleanup = await prisma.lead.updateMany({
+            where: {
+                deletedAt: null,
+                OR: [
+                    { score: { lt: 10 } },
+                    { score: 0, maxScore: 0 },
+                    { score: 0, maxScore: 1 }
+                ]
+            },
+            data: {
+                deletedAt: new Date(),
+                deletionReason: 'Past ball (Score < 10 yoki 0/0)'
+            }
+        });
 
-        console.log(`[SheetSync] Yakunlandi! Qo'shildi: ${addedCount} ta. Takroriy: ${duplicateCount} ta.`);
+        console.log(`[SheetSync] Yakunlandi! Qo'shildi: ${addedCount} ta. Takroriy: ${duplicateCount} ta. Tozalandi: ${cleanup.count} ta past balli lid.`);
 
     } catch (error: any) {
         console.error('[SheetSync] Xatolik yuz berdi:', error.message);
