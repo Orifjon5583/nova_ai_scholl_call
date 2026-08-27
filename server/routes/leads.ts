@@ -287,6 +287,9 @@ router.post('/import-google-sheets', authenticate, async (req: any, res: any) =>
         const sourceIdx = findColIdx('manba', 'source', 'kanal');
         const regionIdx = findColIdx('hudud', 'viloyat', 'region', 'tuman', 'shahar');
         const gradeIdx = findColIdx('sinf', 'guruh', 'grade', 'class');
+        const scoreIdx = findColIdx('score', 'ball', 'natija', 'bäll', 'point', 'mark', 'bal');
+        const maxScoreIdx = findColIdx('max score', 'maxscore', 'maksimal', 'max_score', 'max');
+        const cheatedIdx = findColIdx('cheated', 'cheat', 'g\'irrom', 'shoxlik');
 
         const createdLeads = [];
         let duplicateCount = 0;
@@ -294,6 +297,48 @@ router.post('/import-google-sheets', authenticate, async (req: any, res: any) =>
         for (let i = 1; i < lines.length; i++) {
             const cols = parseCSVLine(lines[i]).map(c => c.replace(/^['"]|['"]$/g, ''));
             if (cols.length === 0) continue;
+
+            // 1. Cheated validation
+            if (cheatedIdx !== -1 && cols[cheatedIdx]) {
+                const cheatedVal = cols[cheatedIdx].trim().toLowerCase();
+                if (cheatedVal && cheatedVal !== 'no' && cheatedVal !== 'yo\'q' && cheatedVal !== 'false' && cheatedVal !== '0') {
+                    continue; // Skip cheated entries
+                }
+            }
+
+            // 2. Score & MaxScore parsing
+            let rawScore: number | null = null;
+            let rawMaxScore: number | null = null;
+
+            if (scoreIdx !== -1 && cols[scoreIdx] && cols[scoreIdx].trim() !== '') {
+                const scoreStr = cols[scoreIdx].trim();
+                if (scoreStr.includes('/')) {
+                    const parts = scoreStr.split('/');
+                    const parsedS = parseInt(parts[0].replace(/\D/g, ''));
+                    const parsedM = parseInt(parts[1].replace(/\D/g, ''));
+                    if (!isNaN(parsedS)) rawScore = parsedS;
+                    if (!isNaN(parsedM)) rawMaxScore = parsedM;
+                } else if (scoreStr.includes('-') && !scoreStr.startsWith('-')) {
+                    const parts = scoreStr.split('-');
+                    const parsedS = parseInt(parts[0].replace(/\D/g, ''));
+                    const parsedM = parseInt(parts[1].replace(/\D/g, ''));
+                    if (!isNaN(parsedS)) rawScore = parsedS;
+                    if (!isNaN(parsedM)) rawMaxScore = parsedM;
+                } else {
+                    const parsedS = parseInt(scoreStr.replace(/\D/g, ''));
+                    if (!isNaN(parsedS)) rawScore = parsedS;
+                }
+            }
+
+            if (rawMaxScore === null && maxScoreIdx !== -1 && cols[maxScoreIdx] && cols[maxScoreIdx].trim() !== '') {
+                const parsedM = parseInt(cols[maxScoreIdx].replace(/\D/g, ''));
+                if (!isNaN(parsedM)) rawMaxScore = parsedM;
+            }
+
+            // 3. Filter score >= 10 if score column is present
+            if (scoreIdx !== -1 && rawScore !== null && rawScore < 10) {
+                continue; // Skip leads with score less than 10
+            }
 
             const rawName = nameIdx !== -1 ? cols[nameIdx] : cols[0];
             const rawPhone = phoneIdx !== -1 ? cols[phoneIdx] : cols[1];
@@ -323,6 +368,8 @@ router.post('/import-google-sheets', authenticate, async (req: any, res: any) =>
                     source,
                     region,
                     grade,
+                    score: rawScore,
+                    maxScore: rawMaxScore,
                     isDuplicate: isDup,
                     assignedTo: assignedOperatorId,
                     status: 'Yangi'

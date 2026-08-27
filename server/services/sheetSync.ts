@@ -46,20 +46,64 @@ export const syncGoogleSheets = async () => {
             }
         });
 
-        for (const record of records) {
-            // Ustun nomlari aynan rasmdagidek bo'lishi kutilmoqda:
-            // Timestamp | User ID | Name | Phone | Class | Score | Max Score | Cheated
-            
-            const cheated = record['Cheated']?.toString().trim().toLowerCase() || '';
-            if (cheated !== 'no') {
-                continue; // Faqat "no" bo'lganlarni olamiz
+        for (const record of (records as any[])) {
+            const keys = Object.keys(record);
+            const findVal = (...keywords: string[]) => {
+                for (const key of keys) {
+                    const k = key.toLowerCase().trim();
+                    if (keywords.some(kw => k === kw || k.includes(kw))) {
+                        return record[key];
+                    }
+                }
+                return undefined;
+            };
+
+            // 1. Cheated validation: skip if cheated is not 'no' / 'yo'q' / 'false' / '0'
+            const cheatedVal = (findVal('cheated', 'cheat', 'g\'irrom', 'shoxlik') || '').toString().trim().toLowerCase();
+            if (cheatedVal && cheatedVal !== 'no' && cheatedVal !== 'yo\'q' && cheatedVal !== 'false' && cheatedVal !== '0') {
+                continue;
             }
 
-            const rawName = record['Name']?.toString().trim() || 'Noma\'lum';
-            const rawPhone = record['Phone']?.toString().trim();
-            const rawClass = record['Class']?.toString().trim(); // masalan "5", biz "5-sinf" ga aylantiramiz
-            const rawScore = parseInt(record['Score']) || 0;
-            const rawMaxScore = parseInt(record['Max Score']) || 0;
+            // 2. Score & MaxScore parsing
+            const scoreVal = findVal('score', 'ball', 'natija', 'bäll', 'point', 'mark', 'bal');
+            const maxScoreVal = findVal('max score', 'maxscore', 'maksimal', 'max_score', 'max');
+
+            let rawScore: number | null = null;
+            let rawMaxScore: number | null = null;
+
+            if (scoreVal !== undefined && scoreVal !== null && scoreVal.toString().trim() !== '') {
+                const scoreStr = scoreVal.toString().trim();
+                if (scoreStr.includes('/')) {
+                    const parts = scoreStr.split('/');
+                    const parsedS = parseInt(parts[0].replace(/\D/g, ''));
+                    const parsedM = parseInt(parts[1].replace(/\D/g, ''));
+                    if (!isNaN(parsedS)) rawScore = parsedS;
+                    if (!isNaN(parsedM)) rawMaxScore = parsedM;
+                } else if (scoreStr.includes('-') && !scoreStr.startsWith('-')) {
+                    const parts = scoreStr.split('-');
+                    const parsedS = parseInt(parts[0].replace(/\D/g, ''));
+                    const parsedM = parseInt(parts[1].replace(/\D/g, ''));
+                    if (!isNaN(parsedS)) rawScore = parsedS;
+                    if (!isNaN(parsedM)) rawMaxScore = parsedM;
+                } else {
+                    const parsedS = parseInt(scoreStr.replace(/\D/g, ''));
+                    if (!isNaN(parsedS)) rawScore = parsedS;
+                }
+            }
+
+            if (rawMaxScore === null && maxScoreVal !== undefined && maxScoreVal !== null && maxScoreVal.toString().trim() !== '') {
+                const parsedM = parseInt(maxScoreVal.toString().replace(/\D/g, ''));
+                if (!isNaN(parsedM)) rawMaxScore = parsedM;
+            }
+
+            // 3. Filter score: If score is present, only take score >= 10 (10 va undan yuqori ballilar)
+            if (scoreVal !== undefined && rawScore !== null && rawScore < 10) {
+                continue;
+            }
+
+            const rawName = (findVal('name', 'ism', 'fio', 'full') || 'Noma\'lum').toString().trim();
+            const rawPhone = findVal('phone', 'tel', 'nomer', 'num', 'raqam')?.toString().trim();
+            const rawClass = findVal('class', 'sinf', 'guruh', 'grade')?.toString().trim();
 
             if (!rawPhone) continue; // Raqami yo'qlarni o'tkazib yuboramiz
             
@@ -74,7 +118,6 @@ export const syncGoogleSheets = async () => {
 
             let grade = null;
             if (rawClass) {
-                // Agar allaqachon "sinf" so'zi bo'lsa, tegmaymiz. Yo'q bo'lsa qo'shamiz
                 grade = rawClass.toLowerCase().includes('sinf') ? rawClass : `${rawClass}-sinf`;
             }
 
@@ -98,7 +141,7 @@ export const syncGoogleSheets = async () => {
 
             await prisma.lead.create({
                 data: {
-                    name: rawName,
+                    name: rawName || 'Noma\'lum',
                     phone: formattedPhone,
                     source: 'Google Sheets',
                     grade: grade,
