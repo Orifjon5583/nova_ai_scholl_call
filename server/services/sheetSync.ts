@@ -64,14 +64,27 @@ export const syncGoogleSheets = async () => {
                 continue;
             }
 
-            // 2. Score & MaxScore parsing
-            const scoreVal = findVal('score', 'ball', 'natija', 'bäll', 'point', 'mark', 'bal');
+            // 2. Score & MaxScore parsing with flexible keywords + auto pattern matching (e.g. "0/0", "0/1", "15/20")
+            const scoreVal = findVal('score', 'ball', 'natija', 'bäll', 'point', 'mark', 'bal', 'test', 'javob', 'togri', 'to\'g\'ri', 'correct', 'result', ' балл', 'оценка', 'результат');
             const maxScoreVal = findVal('max score', 'maxscore', 'maksimal', 'max_score', 'max');
 
             let rawScore: number | null = null;
             let rawMaxScore: number | null = null;
 
-            if (scoreVal !== undefined && scoreVal !== null && scoreVal.toString().trim() !== '') {
+            // Pattern scan across all cells for "X/Y" or "X-Y"
+            for (const key of keys) {
+                const valStr = (record[key] || '').toString().trim();
+                if (/^\d+\s*[\/\-]\s*\d+$/.test(valStr)) {
+                    const parts = valStr.split(/[\/\-]/);
+                    const s = parseInt(parts[0].trim());
+                    const m = parseInt(parts[1].trim());
+                    if (!isNaN(s)) rawScore = s;
+                    if (!isNaN(m)) rawMaxScore = m;
+                    break;
+                }
+            }
+
+            if (rawScore === null && scoreVal !== undefined && scoreVal !== null && scoreVal.toString().trim() !== '') {
                 const scoreStr = scoreVal.toString().trim();
                 if (scoreStr.includes('/')) {
                     const parts = scoreStr.split('/');
@@ -96,9 +109,11 @@ export const syncGoogleSheets = async () => {
                 if (!isNaN(parsedM)) rawMaxScore = parsedM;
             }
 
-            // 3. Filter score: If score is present, only take score >= 10 (10 va undan yuqori ballilar)
-            if (scoreVal !== undefined && rawScore !== null && rawScore < 10) {
-                continue;
+            // 3. Filter out 0/0, 0/1 or any score < 10
+            if (rawScore !== null) {
+                if (rawScore < 10 || (rawScore === 0 && (rawMaxScore === 0 || rawMaxScore === 1))) {
+                    continue; // 0/0, 0/1 yoki 10 dan kam ball topshirganlar olinmaydi
+                }
             }
 
             const rawName = (findVal('name', 'ism', 'fio', 'full') || 'Noma\'lum').toString().trim();

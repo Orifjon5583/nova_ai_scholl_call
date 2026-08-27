@@ -287,7 +287,7 @@ router.post('/import-google-sheets', authenticate, async (req: any, res: any) =>
         const sourceIdx = findColIdx('manba', 'source', 'kanal');
         const regionIdx = findColIdx('hudud', 'viloyat', 'region', 'tuman', 'shahar');
         const gradeIdx = findColIdx('sinf', 'guruh', 'grade', 'class');
-        const scoreIdx = findColIdx('score', 'ball', 'natija', 'bäll', 'point', 'mark', 'bal');
+        const scoreIdx = findColIdx('score', 'ball', 'natija', 'bäll', 'point', 'mark', 'bal', 'test', 'javob', 'togri', 'to\'g\'ri', 'correct', 'result', ' балл', 'оценка', 'результат');
         const maxScoreIdx = findColIdx('max score', 'maxscore', 'maksimal', 'max_score', 'max');
         const cheatedIdx = findColIdx('cheated', 'cheat', 'g\'irrom', 'shoxlik');
 
@@ -310,7 +310,20 @@ router.post('/import-google-sheets', authenticate, async (req: any, res: any) =>
             let rawScore: number | null = null;
             let rawMaxScore: number | null = null;
 
-            if (scoreIdx !== -1 && cols[scoreIdx] && cols[scoreIdx].trim() !== '') {
+            // Scan columns in this row for pattern X/Y
+            for (let c = 0; c < cols.length; c++) {
+                const valStr = (cols[c] || '').trim();
+                if (/^\d+\s*[\/\-]\s*\d+$/.test(valStr)) {
+                    const parts = valStr.split(/[\/\-]/);
+                    const s = parseInt(parts[0].trim());
+                    const m = parseInt(parts[1].trim());
+                    if (!isNaN(s)) rawScore = s;
+                    if (!isNaN(m)) rawMaxScore = m;
+                    break;
+                }
+            }
+
+            if (rawScore === null && scoreIdx !== -1 && cols[scoreIdx] && cols[scoreIdx].trim() !== '') {
                 const scoreStr = cols[scoreIdx].trim();
                 if (scoreStr.includes('/')) {
                     const parts = scoreStr.split('/');
@@ -335,9 +348,11 @@ router.post('/import-google-sheets', authenticate, async (req: any, res: any) =>
                 if (!isNaN(parsedM)) rawMaxScore = parsedM;
             }
 
-            // 3. Filter score >= 10 if score column is present
-            if (scoreIdx !== -1 && rawScore !== null && rawScore < 10) {
-                continue; // Skip leads with score less than 10
+            // 3. Filter out 0/0, 0/1 or any score < 10
+            if (rawScore !== null) {
+                if (rawScore < 10 || (rawScore === 0 && (rawMaxScore === 0 || rawMaxScore === 1))) {
+                    continue; // 0/0, 0/1 yoki 10 dan kam ball topshirganlar olinmaydi
+                }
             }
 
             const rawName = nameIdx !== -1 ? cols[nameIdx] : cols[0];
