@@ -167,6 +167,8 @@ export const syncGoogleSheets = async () => {
                 }
             });
             addedCount++;
+        }
+
         // Mavjud past balli (score < 10 yoki 0/0) lidlarni ham bazadan tozalash
         const cleanup = await prisma.lead.updateMany({
             where: {
