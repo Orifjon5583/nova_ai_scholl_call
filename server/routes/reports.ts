@@ -31,7 +31,7 @@ router.get('/', authenticate, async (req: any, res: any) => {
             const operators = await prisma.user.findMany({
                 where: { role: 'operator' },
                 include: {
-                    assignedLeads: true,
+                    assignedLeads: { where: { deletedAt: null } },
                     callLogs: true
                 }
             });

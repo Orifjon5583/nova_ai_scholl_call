@@ -9,7 +9,7 @@ router.get('/', authenticate, async (req: any, res: any) => {
         const role = req.user.role;
         const userId = req.user.id;
 
-        const whereClause = role === 'admin' ? {} : { assignedTo: userId };
+        const whereClause = role === 'admin' ? { deletedAt: null } : { assignedTo: userId, deletedAt: null };
         const operatorWhereClause = role === 'admin' ? {} : { operatorId: userId };
 
         const todayStart = new Date();
@@ -120,7 +120,7 @@ router.get('/', authenticate, async (req: any, res: any) => {
                 id: true,
                 name: true,
                 status: true,
-                assignedLeads: { select: { id: true, status: true, quality: true, delayCount: true, nextCallAt: true } },
+                assignedLeads: { where: { deletedAt: null }, select: { id: true, status: true, quality: true, delayCount: true, nextCallAt: true } },
                 callLogs: { select: { id: true, result: true, durationSeconds: true } },
                 leadDelays: { select: { id: true } }
             }

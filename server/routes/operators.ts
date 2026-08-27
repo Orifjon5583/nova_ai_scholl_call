@@ -30,7 +30,7 @@ router.get('/', authenticate, adminOnly, async (req: any, res: any) => {
                 createdAt: true,
                 _count: {
                     select: {
-                        assignedLeads: true,
+                        assignedLeads: { where: { deletedAt: null } },
                         callLogs: true
                     }
                 }
