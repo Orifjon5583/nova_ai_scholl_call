@@ -146,7 +146,32 @@ app.listen(PORT, async () => {
     initTelegramScheduler();
     await initBotPolling();
     
-    // Google Sheets jadvalidan avtomatik tekshiruv (Har 1 soatda)
+    // Auto cleanup existing low score / 0-0 leads on boot
+    try {
+        const cleanupRes = await prisma.lead.updateMany({
+            where: {
+                deletedAt: null,
+                OR: [
+                    { score: { lt: 10 } },
+                    { score: 0, maxScore: 0 },
+                    { score: 0, maxScore: 1 },
+                    { score: null, source: 'Google Sheets' }
+                ]
+            },
+            data: {
+                deletedAt: new Date(),
+                deletionReason: 'Past ball (Score < 10 yoki 0/0)'
+            }
+        });
+        if (cleanupRes.count > 0) {
+            console.log(`[BootCleanup] ${cleanupRes.count} ta past balli / 0-0 eski lidlar tozalandi.`);
+        }
+    } catch (e) {
+        console.error('Boot cleanup error:', e);
+    }
+
+    // Google Sheets sync on boot and every hour
+    syncGoogleSheets();
     cron.schedule('0 * * * *', () => {
         syncGoogleSheets();
     });

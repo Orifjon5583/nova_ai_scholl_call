@@ -706,7 +706,8 @@ router.post('/cleanup-low-scores', authenticate, async (req: any, res: any) => {
                 OR: [
                     { score: { lt: 10 } },
                     { score: 0, maxScore: 0 },
-                    { score: 0, maxScore: 1 }
+                    { score: 0, maxScore: 1 },
+                    { score: null, source: 'Google Sheets' }
                 ]
             },
             data: {
